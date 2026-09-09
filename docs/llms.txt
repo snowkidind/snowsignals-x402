@@ -1,0 +1,44 @@
+# SnowSignals x402 gateway
+
+> Market-phase data (TrendVane) over the x402 pay-per-call protocol. Pay per request in USDC on Base.
+> No account, no API key, no signup. The phase names the market state for a currency on a timeframe;
+> it reports state, not a trade signal.
+
+Base URL: https://pay.snowsignals.io
+Payment: x402 (USDC on Base, chain id 8453). The client signs a one-time USDC authorization for the
+exact amount quoted in the 402 response; settlement fees are covered by the facilitator (wallet needs
+USDC, not gas).
+
+## Endpoints
+
+- `GET /phase/boundary?currency=&tf=` (paid) — the settled phase from the last closed bar. Deterministic;
+  unchanged until the next bar closes.
+- `GET /phase/updates?currency=&tf=` (paid) — the live phase forming in the current bar; refreshed ~once
+  per minute.
+- `GET /phases` (free) — enabled currencies, timeframes, and the live price list.
+- `GET /phase/resolution-stats` (free) — successor-phase transition probabilities and reward-vs-drawdown
+  stats (BTC research model, 2022–2026).
+
+Params: `currency` and `tf` accept a single value, a comma list, or `all`. Currencies include BTC, ETH.
+Timeframes: 15m, 1h, 2h, 4h, 1d, 1w. A request serves `|currencies| x |timeframes|` rows.
+
+## Pricing
+
+Price scales with rows served. ~$0.0087 for one row; the exact amount is quoted in the 402 challenge
+before payment. The base rate and multiplier tiers are published in `/phases` so cost is computable up
+front. Metadata endpoints are free.
+
+## Response shape
+
+`{ "data": { "<CURRENCY>": { "<TF>": { "ts": "...", "phase": "establishing_bull", "label": "Establishing Bull" } } } }`
+
+## Run your own
+
+The gateway is an open Cloudflare Worker you can fork and resell: point it at a SnowSignals wholesale
+account and set your own price. Wholesale accounts: https://snowsignals.io
+
+## Links
+
+- OpenAPI: https://pay.snowsignals.io/openapi.json
+- x402 protocol: https://x402.org
+- SnowSignals: https://snowsignals.io

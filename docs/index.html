@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SnowSignals x402: market-phase data, pay per call</title>
+<meta name="description" content="Read SnowSignals market-phase data over x402. Pay per call in USDC on Base. No account, no key, no signup." />
+<link rel="canonical" href="https://pay.snowsignals.io/" />
+<meta property="og:title" content="SnowSignals x402: market-phase data, pay per call" />
+<meta property="og:description" content="Read SnowSignals market-phase data over x402. Pay per call in USDC on Base. No account, no signup." />
+<meta property="og:url" content="https://pay.snowsignals.io/" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #0b0e14; color: #d7dce5;
+    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 72px 24px 96px; }
+  h1 { font-size: 2.15rem; line-height: 1.15; margin: 0 0 12px; color: #f2f5fa; letter-spacing: -0.02em; }
+  h2 { font-size: 1.25rem; margin: 48px 0 12px; color: #f2f5fa; }
+  p { margin: 0 0 16px; }
+  a { color: #6cc1ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .lede { font-size: 1.2rem; color: #aeb6c4; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; }
+  code { background: #161b26; padding: 2px 6px; border-radius: 5px; color: #e6b3ff; }
+  pre {
+    background: #11151e; border: 1px solid #1e2531; border-radius: 10px;
+    padding: 16px 18px; overflow-x: auto; line-height: 1.5; color: #cdd5e2;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 20px; font-size: 0.94rem; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #1e2531; vertical-align: top; }
+  th { color: #8b93a3; font-weight: 600; }
+  .muted { color: #8b93a3; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 8px; }
+  .btn {
+    display: inline-block; padding: 9px 16px; border-radius: 8px; font-weight: 600;
+    background: #6cc1ff; color: #06121e;
+  }
+  .btn.secondary { background: #1a212e; color: #cdd5e2; border: 1px solid #2a3342; }
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid #1a212e; color: #6b7484; font-size: 0.88rem; }
+  hr { border: none; border-top: 1px solid #1a212e; margin: 44px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Market-phase data, one call at a time.</h1>
+  <p class="lede">TrendVane names the phase a market is in, for a currency on a timeframe. Read it over
+  x402 and pay per call in USDC on Base. You don't need an account or an API key.</p>
+
+  <div class="row">
+    <a class="btn" href="#quickstart">Quickstart</a>
+    <a class="btn secondary" href="https://snowsignals.io" rel="noopener">Get an account</a>
+  </div>
+
+  <h2>What you get back</h2>
+  <p>Ask for a currency and a timeframe, and you get the current phase: a label like
+  <code>establishing_bull</code> or <code>consolidating_bear</code>, plus when that reading was set.
+  It tells you the state of the market, not what to trade on it. You bring the strategy.</p>
+  <p>Two kinds of read. <code>boundary</code> is the last closed bar: settled, deterministic, it won't
+  change until the next bar closes. <code>updates</code> is the reading still forming inside the current
+  bar, refreshed about once a minute.</p>
+
+  <h2>Endpoints</h2>
+  <p class="muted">Base URL: <code>https://pay.snowsignals.io</code></p>
+  <table>
+    <tr><th>Call</th><th>Cost</th><th>What it is</th></tr>
+    <tr><td><code>GET /phase/boundary?currency=&amp;tf=</code></td><td>paid</td><td>Settled phase, last closed bar</td></tr>
+    <tr><td><code>GET /phase/updates?currency=&amp;tf=</code></td><td>paid</td><td>Live phase, current bar</td></tr>
+    <tr><td><code>GET /phases</code></td><td>free</td><td>The menu: currencies, timeframes, price list</td></tr>
+    <tr><td><code>GET /phase/resolution-stats</code></td><td>free</td><td>How phases tend to resolve (research)</td></tr>
+  </table>
+  <p><code>currency</code> and <code>tf</code> take a single value, a comma list, or <code>all</code>.
+  Currencies include BTC and ETH; timeframes run 15m, 1h, 2h, 4h, 1d, 1w.</p>
+
+  <h2>What it costs</h2>
+  <p>Price scales with how much you ask for. One reading runs about <strong>$0.0087</strong>; a bundle of
+  six timeframes for one currency is around five cents. The exact price for any request is quoted back to
+  you in the 402 before you pay, and the live rates sit in <code>/phases</code> so you can work out a call's
+  cost ahead of time. The metadata calls are free and need no payment.</p>
+
+  <h2 id="quickstart">Quickstart</h2>
+  <p>Any x402 client works. With <a href="https://www.npmjs.com/package/x402-fetch" rel="noopener">x402-fetch</a>
+  and a Base wallet holding a little USDC:</p>
+  <pre><code>import { wrapFetchWithPayment, createSigner } from "x402-fetch";
+
+const signer = await createSigner("base", process.env.PRIVATE_KEY);
+const pay = wrapFetchWithPayment(fetch, signer);
+
+const res = await pay("https://pay.snowsignals.io/phase/boundary?currency=BTC&amp;tf=1h");
+console.log(await res.json());
+// { "data": { "BTC": { "1h": { "phase": "establishing_bull", ... } } } }</code></pre>
+  <p>The client handles the 402: it signs a one-time USDC authorization for the exact amount, the payment
+  settles on Base, and the data comes back. Your wallet needs USDC, not gas. The settlement fee is covered
+  for you.</p>
+
+  <hr />
+
+  <h2>Run your own</h2>
+  <p>This whole thing is a small Cloudflare Worker, and you can run your own copy of it. Point it at a
+  SnowSignals wholesale key, set your own price, and keep the margin. You handle the customers; we handle the
+  data. When your volume grows, so does ours, and everyone's happy.</p>
+  <p>Grab a wholesale key at <a href="https://snowsignals.io" rel="noopener">snowsignals.io</a>. The
+  template and a full walkthrough live in the repo.</p>
+
+  <footer>
+    SnowSignals · TrendVane market-phase data · settled in USDC on Base via
+    <a href="https://x402.org" rel="noopener">x402</a>.
+    Machine-readable: <a href="/llms.txt">llms.txt</a> · <a href="/openapi.json">OpenAPI</a>.
+  </footer>
+</main>
+</body>
+</html>

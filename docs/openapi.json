@@ -1,0 +1,117 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SnowSignals x402 gateway",
+    "version": "1.0.0",
+    "description": "Market-phase data (TrendVane) over the x402 pay-per-call protocol. Paid endpoints require an x402 payment (USDC on Base); metadata endpoints are free. The phase names the market state for a currency on a timeframe.",
+    "contact": { "name": "SnowSignals", "url": "https://snowsignals.io" }
+  },
+  "servers": [{ "url": "https://pay.snowsignals.io" }],
+  "paths": {
+    "/phase/boundary": {
+      "get": {
+        "summary": "Settled phase (last closed bar)",
+        "description": "The deterministic phase from the last closed bar. Metered per row; requires an x402 payment. The 402 response quotes the exact price.",
+        "parameters": [
+          { "$ref": "#/components/parameters/currency" },
+          { "$ref": "#/components/parameters/tf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/PhaseData" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/phase/updates": {
+      "get": {
+        "summary": "Live phase (current bar)",
+        "description": "The phase forming in the current bar; refreshed about once per minute. Metered per row; requires an x402 payment.",
+        "parameters": [
+          { "$ref": "#/components/parameters/currency" },
+          { "$ref": "#/components/parameters/tf" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/PhaseData" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/phases": {
+      "get": {
+        "summary": "Metadata + price list (free)",
+        "description": "Enabled currencies, timeframes, phase labels, and the live pricing model. Free, no payment.",
+        "responses": { "200": { "description": "Metadata document" } }
+      }
+    },
+    "/phase/resolution-stats": {
+      "get": {
+        "summary": "Phase resolution statistics (free)",
+        "description": "Successor-phase transition probabilities and reward-vs-drawdown stats. Free, no payment.",
+        "responses": { "200": { "description": "Resolution-stats document" } }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "currency": {
+        "name": "currency", "in": "query",
+        "description": "A single currency (e.g. BTC), a comma list, or 'all'.",
+        "schema": { "type": "string", "default": "BTC" }
+      },
+      "tf": {
+        "name": "tf", "in": "query",
+        "description": "A single timeframe, a comma list, or 'all'. One of 15m, 1h, 2h, 4h, 1d, 1w.",
+        "schema": { "type": "string", "default": "1h" }
+      }
+    },
+    "responses": {
+      "PhaseData": {
+        "description": "Phase readings keyed currency -> timeframe.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": ["object", "null"],
+                      "properties": {
+                        "ts": { "type": "string", "format": "date-time" },
+                        "phase": { "type": "string", "example": "establishing_bull" },
+                        "label": { "type": "string", "example": "Establishing Bull" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "description": "x402 payment required. The body lists accepted payment requirements including the price (USDC on Base), the pay-to address, and the asset.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "x402Version": { "type": "integer", "example": 1 },
+                "error": { "type": "string" },
+                "accepts": { "type": "array", "items": { "type": "object" } }
+              }
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Invalid currency or timeframe, or a request exceeding the enabled-basket cap.",
+        "content": { "application/json": { "schema": { "type": "object", "properties": { "error": { "type": "string" } } } } }
+      }
+    }
+  }
+}
