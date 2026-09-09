@@ -18,15 +18,15 @@
 		"enabled": true,
 	},
 	"vars": {
-		// Payment network for x402 (USDC on Base = production). The `sepolia` env below overrides this.
+		// Payment network for x402 (USDC on Base).
 		"NETWORK": "base",
 		// The liveserv origin this gateway resells. Origin paths hang off `${ORIGIN_URL}/v1/api/...`.
 		"ORIGIN_URL": "https://snowsignals.io",
-		// CDP facilitator that verifies + settles x402 payments (Base + Base Sepolia).
+		// CDP facilitator that verifies + settles x402 payments on Base.
 		"FACILITATOR_URL": "https://api.cdp.coinbase.com/platform/v2/x402",
-		// PAY_TO — merchant address that receives USDC. DOCUMENTED PLACEHOLDER: the dead address is
-		// used for the build segment; the real SnowSignals merchant address is set in [[98]].
-		"PAY_TO": "0x000000000000000000000000000000000000dEaD",
+		// PAY_TO — merchant address that receives USDC. Receive-only (key held in hotsign; evm HD
+		// index 4). FORKERS: replace with your OWN receive address.
+		"PAY_TO": "0x9273429D71565154fA0FDf4Bf0f404Eb02C91518",
 	},
 	// Per-row phase cache (keyed `${kind}:${currency}:${tf}:${bucket}`). The `id` is a PLACEHOLDER —
 	// the real namespace is created and wired in [[98]].
@@ -55,25 +55,8 @@
 		},
 	],
 	"upload_source_maps": true,
-	// Environments stubbed here; concrete ids/secrets are filled at go-live ([[98]]).
-	"env": {
-		// Testnet: same code, Base Sepolia network for on-chain tests ([[98]]).
-		"sepolia": {
-			"vars": {
-				"NETWORK": "base-sepolia",
-				"ORIGIN_URL": "https://snowsignals.io",
-				"FACILITATOR_URL": "https://api.cdp.coinbase.com/platform/v2/x402",
-				"PAY_TO": "0x000000000000000000000000000000000000dEaD",
-			},
-		},
-		// Production: USDC on Base. Real PAY_TO + KV id + secrets provisioned in [[98]].
-		"production": {
-			"vars": {
-				"NETWORK": "base",
-				"ORIGIN_URL": "https://snowsignals.io",
-				"FACILITATOR_URL": "https://api.cdp.coinbase.com/platform/v2/x402",
-				"PAY_TO": "0x000000000000000000000000000000000000dEaD",
-			},
-		},
-	},
+	// Single top-level config — deploy with a plain `wrangler deploy` (no named env). Testnet was
+	// dropped (go-live proves the money path with a real cent-scale payment on Base — [[98]] D1); a
+	// named `production` env that redeclared only `vars` would have silently dropped the KV + DO
+	// bindings, so the top-level config is the one source of truth.
 }
