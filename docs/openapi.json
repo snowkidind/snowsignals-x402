@@ -94,17 +94,11 @@
         }
       },
       "PaymentRequired": {
-        "description": "x402 payment required. The body lists accepted payment requirements including the price (USDC on Base), the pay-to address, and the asset.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "type": "object",
-              "properties": {
-                "x402Version": { "type": "integer", "example": 1 },
-                "error": { "type": "string" },
-                "accepts": { "type": "array", "items": { "type": "object" } }
-              }
-            }
+        "description": "x402 payment required (x402 v2). The accepted payment requirements — price (USDC on Base), pay-to address, and asset — are carried in the base64 PAYMENT-REQUIRED response header; an x402 client decodes it, signs a USDC authorization for the quoted amount, and retries. The response body is empty.",
+        "headers": {
+          "PAYMENT-REQUIRED": {
+            "description": "Base64-encoded x402 v2 PaymentRequired document: x402Version, accepts[] (scheme, network, asset, amount, payTo), and discovery extensions.",
+            "schema": { "type": "string" }
           }
         }
       },

@@ -22,9 +22,9 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Metered routes — priced per row, paid per call over x402 (verify → serve → settle).
 app.get("/phase/boundary", async (c) =>
-	servePaidPhase("boundary", c.req.raw, c.env, await getPaymentServer(c.env)));
+	servePaidPhase("boundary", c.req.raw, c.env, await getPaymentServer(c.env, c.req.raw)));
 app.get("/phase/updates", async (c) =>
-	servePaidPhase("updates", c.req.raw, c.env, await getPaymentServer(c.env)));
+	servePaidPhase("updates", c.req.raw, c.env, await getPaymentServer(c.env, c.req.raw)));
 
 // Free metadata — edge-cached passthrough, no payment.
 app.get("/phases", (c) => serveFreeMetadata(c.req.raw, c.env, "/v1/api/phases"));

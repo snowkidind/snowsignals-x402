@@ -10,7 +10,7 @@
 import { x402ResourceServer, x402HTTPResourceServer } from "@x402/core/server";
 import type { DynamicPrice, RouteConfig, RoutesConfig } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
+import { createCdpFacilitatorClient, buildBazaarDeclaration, CDP_EXTENSION_BAZAAR } from "@coinbase/cdp-sdk/x402";
 import type { Env } from "./env.js";
 import { MAX_TIMEOUT_SECONDS, NETWORK, USDC_ASSET } from "./config.js";
 import { computeRetail, countRows, getPricingModel } from "./pricing.js";
@@ -27,8 +27,13 @@ function dynamicPrice(env: Env): DynamicPrice {
 	};
 }
 
-/** The metered routes: an EVM `exact` option on Base priced per row, receiving USDC at `PAY_TO`. */
-function buildRoutes(env: Env): RoutesConfig {
+/**
+ * The metered routes: an EVM `exact` option on Base priced per row, receiving USDC at `PAY_TO`. Each
+ * carries a Bazaar discovery declaration so the CDP facilitator indexes the route at settle time. The
+ * `resource` is the canonical route URL (derived from the deployment's own origin, so a fork lists
+ * under its own domain) rather than the per-request URL, keeping one clean catalog entry per route.
+ */
+function buildRoutes(env: Env, origin: string): RoutesConfig {
 	const price = dynamicPrice(env);
 	const routes: Record<string, RouteConfig> = {};
 	for (const kind of Object.keys(ROUTES) as PhaseKind[]) {
@@ -40,9 +45,11 @@ function buildRoutes(env: Env): RoutesConfig {
 				price,
 				maxTimeoutSeconds: MAX_TIMEOUT_SECONDS,
 			},
+			resource: `${origin}${ROUTES[kind]}`,
 			description: `SnowSignals phase ${kind} — pay-per-row market-phase reading`,
 			mimeType: "application/json",
 			serviceName: "SnowSignals",
+			extensions: { [CDP_EXTENSION_BAZAAR]: buildBazaarDeclaration("GET", ROUTES[kind]) },
 		};
 	}
 	return routes;
@@ -50,10 +57,14 @@ function buildRoutes(env: Env): RoutesConfig {
 
 let serverPromise: Promise<x402HTTPResourceServer> | undefined;
 
-/** The isolate-wide payment server (built + initialized once). Fails loud if CDP keys are unset. */
-export function getPaymentServer(env: Env): Promise<PaymentServer> {
+/**
+ * The isolate-wide payment server (built + initialized once). The request supplies the deployment's
+ * own origin for the routes' canonical `resource` URLs. Fails loud if CDP keys are unset.
+ */
+export function getPaymentServer(env: Env, request: Request): Promise<PaymentServer> {
 	if (!serverPromise) {
-		serverPromise = buildServer(env).catch((err) => {
+		const origin = new URL(request.url).origin;
+		serverPromise = buildServer(env, origin).catch((err) => {
 			serverPromise = undefined; // let a later request retry a failed init
 			throw err;
 		});
@@ -61,14 +72,14 @@ export function getPaymentServer(env: Env): Promise<PaymentServer> {
 	return serverPromise;
 }
 
-async function buildServer(env: Env): Promise<x402HTTPResourceServer> {
+async function buildServer(env: Env, origin: string): Promise<x402HTTPResourceServer> {
 	const facilitator = createCdpFacilitatorClient({
 		apiKeyId: env.CDP_API_KEY_ID,
 		apiKeySecret: env.CDP_API_KEY_SECRET,
 		baseUrl: env.FACILITATOR_URL,
 	});
 	const resourceServer = new x402ResourceServer(facilitator).register(NETWORK, new ExactEvmScheme());
-	const server = new x402HTTPResourceServer(resourceServer, buildRoutes(env));
+	const server = new x402HTTPResourceServer(resourceServer, buildRoutes(env, origin));
 	await server.initialize();
 	return server;
 }
