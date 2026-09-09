@@ -1,0 +1,11 @@
+# Local-dev secrets for the SnowSignals x402 gateway (config vars live in wrangler.jsonc).
+# Copy this file to .dev.vars and fill in real values. NEVER commit .dev.vars.
+# In production these are set with `wrangler secret put <NAME>` ([[98-x402-gateway-go-live]]).
+
+# SnowSignals house account url-mode API key (daas:read). Used by the single-flight Durable Object
+# to buy leftover rows wholesale from the origin.
+HOUSE_API_KEY=
+
+# CDP (Coinbase Developer Platform) API key that authenticates verify/settle to the CDP facilitator.
+CDP_API_KEY_ID=
+CDP_API_KEY_SECRET=

@@ -1,0 +1,43 @@
+{
+	"name": "snowsignals-x402",
+	"description": "Cloudflare Worker that resells SnowSignals phase reads over the x402 payment protocol (USDC on Base). Prices per row from the live SnowSignals pricing model, caches per row, verifies then settles per call.",
+	"cloudflare": {
+		"label": "SnowSignals x402 Gateway",
+		"products": [
+			"Workers"
+		],
+		"categories": [
+			"starter"
+		],
+		"publish": false
+	},
+	"dependencies": {
+		"@coinbase/x402": "2.1.0",
+		"hono": "4.13.7",
+		"x402": "1.2.0",
+		"x402-hono": "1.2.0"
+	},
+	"devDependencies": {
+		"@typescript-eslint/eslint-plugin": "8.50.0",
+		"@typescript-eslint/parser": "8.50.0",
+		"eslint": "9.39.2",
+		"eslint-config-prettier": "10.1.8",
+		"prettier": "3.7.4",
+		"tsx": "4.21.0",
+		"viem": "2.56.3",
+		"wrangler": "4.130.0"
+	},
+	"private": true,
+	"scripts": {
+		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
+		"deploy": "wrangler deploy --minify",
+		"dev": "wrangler dev",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"lint": "npm run typecheck && npm run format:check && eslint .",
+		"lint:fix": "prettier --write . && eslint . --fix",
+		"test": "tsx --test test/*.test.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"type": "module"
+}
