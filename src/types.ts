@@ -32,6 +32,9 @@ export interface ResolvedRow extends Row {
 	reading: Reading;
 }
 
+/** The served projection: currency → tf → reading (or null). Mirrors liveserv's ShapedPhaseData. */
+export type ShapedPhaseData = Record<string, Record<string, Reading>>;
+
 /** The response body from a single-flight Durable Object fetch: tf → reading. */
 export interface SingleFlightResult {
 	readings: Record<string, Reading>;
