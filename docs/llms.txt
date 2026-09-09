@@ -39,6 +39,6 @@ account and set your own price. Wholesale accounts: https://snowsignals.io
 
 ## Links
 
-- OpenAPI: https://pay.snowsignals.io/openapi.json
+- OpenAPI: https://x402.snowsignals.io/openapi.json
 - x402 protocol: https://x402.org
 - SnowSignals: https://snowsignals.io
