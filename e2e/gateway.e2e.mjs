@@ -1,8 +1,8 @@
-// End-to-end tests against a LIVE SnowSignals x402 gateway.
+// End-to-end tests against a LIVE SnowSignals x402 gateway (x402 v2, USDC on Base).
 //
 // Env-driven so anyone can point it at their own deployment with their own funded wallet:
 //   GATEWAY_URL         base URL of the gateway            (default https://pay.snowsignals.io)
-//   NETWORK             x402 network                       (default base)
+//   NETWORK             x402 CAIP-2 network                (default eip155:8453 = Base mainnet)
 //   PAYER_PRIVATE_KEY   0x… key of a Base wallet holding a little USDC. REQUIRED for the paid tests;
 //                       without it, only the free / 402 / 400 tests run (the paid ones skip).
 //
@@ -10,10 +10,13 @@
 // Run:  npm run test:e2e     (Node >=22)
 import test, { before } from "node:test";
 import assert from "node:assert/strict";
-import { wrapFetchWithPayment, createSigner } from "x402-fetch";
+import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { decodePaymentRequiredHeader } from "@x402/core/http";
+import { privateKeyToAccount } from "viem/accounts";
 
 const GATEWAY = (process.env.GATEWAY_URL ?? "https://pay.snowsignals.io").replace(/\/+$/, "");
-const NETWORK = process.env.NETWORK ?? "base";
+const NETWORK = process.env.NETWORK ?? "eip155:8453";
 const KEY = process.env.PAYER_PRIVATE_KEY;
 const paid = KEY ? test : test.skip;
 
@@ -37,7 +40,11 @@ async function model() {
   return _model;
 }
 async function pay() {
-  if (!_pay) _pay = wrapFetchWithPayment(fetch, await createSigner(NETWORK, KEY));
+  if (!_pay) {
+    const client = new x402Client();
+    registerExactEvmScheme(client, { signer: privateKeyToAccount(KEY) });
+    _pay = wrapFetchWithPayment(fetch, client);
+  }
   return _pay;
 }
 
@@ -61,10 +68,13 @@ test("402: an unpaid metered call quotes the correct price + payTo", async () =>
   const m = await model();
   const r = await fetch(`${GATEWAY}/phase/boundary?currency=BTC&tf=1h`);
   assert.equal(r.status, 402);
-  const req = (await r.json()).accepts?.[0];
+  // x402 v2 carries the challenge in the PAYMENT-REQUIRED header (base64), not the body.
+  const challenge = r.headers.get("payment-required");
+  assert.ok(challenge, "PAYMENT-REQUIRED header present");
+  const req = decodePaymentRequiredHeader(challenge).accepts?.[0];
   assert.ok(req, "accepts[0] present");
   assert.equal(req.network, NETWORK);
-  assert.equal(Number(req.maxAmountRequired), retail(m, 1), "quote = 3× wholesale for 1 row");
+  assert.equal(Number(req.amount), retail(m, 1), "quote = 3× wholesale for 1 row");
   assert.match(req.payTo, /^0x[0-9a-fA-F]{40}$/, "payTo is an address");
 });
 
@@ -88,7 +98,7 @@ paid("paid: a single row is served and the payment settles on-chain", async () =
   assert.equal(r.status, 200);
   const reading = (await r.json()).data?.BTC?.["1h"];
   assert.ok(reading?.phase, "a phase reading came back");
-  assert.ok(r.headers.get("x-payment-response"), "settlement header present");
+  assert.ok(r.headers.get("payment-response"), "settlement header present");
 });
 
 paid("cache: repeating the same row serves from cache (no wholesale re-buy)", async () => {

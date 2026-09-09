@@ -9,6 +9,19 @@
 /** Retail = wholesale (the liveserv debit) × this. The gateway's margin (D1). */
 export const RETAIL_MULTIPLIER = 3;
 
+/** x402 payment network, CAIP-2 (USDC on Base mainnet). */
+export const NETWORK = "eip155:8453";
+
+/**
+ * USDC on Base mainnet. Retail micro-USD maps 1:1 to this asset's atomic units (6 decimals), so a
+ * retail micro-USD value is the x402 `amount` string directly. The asset's EIP-712 domain is
+ * resolved from the scheme's default asset table — no `extra` needed.
+ */
+export const USDC_ASSET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+/** x402 payment-authorization validity window advertised to the client. */
+export const MAX_TIMEOUT_SECONDS = 60;
+
 /** How long a fetched pricing model is trusted before we refetch it from the origin (~24h). */
 export const PRICING_TTL_SECONDS = 86400;
 

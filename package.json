@@ -12,22 +12,24 @@
 		"publish": false
 	},
 	"dependencies": {
-		"@coinbase/x402": "2.1.0",
-		"hono": "4.13.7",
-		"x402": "1.2.0",
-		"x402-hono": "1.2.0"
+		"@coinbase/cdp-sdk": "^1.55.0",
+		"@x402/core": "^2.25.0",
+		"@x402/evm": "^2.25.0",
+		"@x402/extensions": "^2.25.0",
+		"@x402/svm": "^2.25.0",
+		"hono": "4.13.7"
 	},
 	"devDependencies": {
 		"@types/node": "^22.20.1",
 		"@typescript-eslint/eslint-plugin": "8.50.0",
 		"@typescript-eslint/parser": "8.50.0",
+		"@x402/fetch": "^2.25.0",
 		"eslint": "9.39.2",
 		"eslint-config-prettier": "10.1.8",
 		"prettier": "3.7.4",
 		"tsx": "4.21.0",
 		"viem": "2.56.3",
-		"wrangler": "4.130.0",
-		"x402-fetch": "1.2.0"
+		"wrangler": "4.130.0"
 	},
 	"private": true,
 	"scripts": {

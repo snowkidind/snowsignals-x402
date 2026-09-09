@@ -13,29 +13,18 @@
  * net-new, not a fork.
  */
 import { Hono } from "hono";
-import { useFacilitator } from "x402/verify";
-import { createCdpAuthHeaders } from "@coinbase/x402";
 import type { Env } from "./env.js";
-import { servePaidPhase, type Facilitator } from "./gateway.js";
+import { servePaidPhase } from "./gateway.js";
+import { getPaymentServer } from "./x402server.js";
 import { serveFreeMetadata } from "./free.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
-/** The CDP facilitator client (verify + settle), authenticated with the CDP API key secrets. */
-function makeFacilitator(env: Env): Facilitator {
-	// @coinbase/x402 (via @x402/core) and x402 pin slightly different CreateHeaders types (optional vs
-	// required header maps); the runtime shapes match, so bridge the two with a typed cast.
-	const config = {
-		url: env.FACILITATOR_URL,
-		createAuthHeaders: createCdpAuthHeaders(env.CDP_API_KEY_ID, env.CDP_API_KEY_SECRET),
-	} as Parameters<typeof useFacilitator>[0];
-	const { verify, settle } = useFacilitator(config);
-	return { verify, settle };
-}
-
-// Metered routes — priced per row, paid per call over x402.
-app.get("/phase/boundary", (c) => servePaidPhase("boundary", c.req.raw, c.env, makeFacilitator(c.env)));
-app.get("/phase/updates", (c) => servePaidPhase("updates", c.req.raw, c.env, makeFacilitator(c.env)));
+// Metered routes — priced per row, paid per call over x402 (verify → serve → settle).
+app.get("/phase/boundary", async (c) =>
+	servePaidPhase("boundary", c.req.raw, c.env, await getPaymentServer(c.env)));
+app.get("/phase/updates", async (c) =>
+	servePaidPhase("updates", c.req.raw, c.env, await getPaymentServer(c.env)));
 
 // Free metadata — edge-cached passthrough, no payment.
 app.get("/phases", (c) => serveFreeMetadata(c.req.raw, c.env, "/v1/api/phases"));

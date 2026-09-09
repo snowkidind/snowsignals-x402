@@ -18,8 +18,6 @@
 		"enabled": true,
 	},
 	"vars": {
-		// Payment network for x402 (USDC on Base).
-		"NETWORK": "base",
 		// The liveserv origin this gateway resells. Origin paths hang off `${ORIGIN_URL}/v1/api/...`.
 		"ORIGIN_URL": "https://snowsignals.io",
 		// CDP facilitator that verifies + settles x402 payments on Base.

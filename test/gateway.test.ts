@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { encodePayment } from "x402/schemes";
-import type { PaymentPayload, SettleResponse, VerifyResponse } from "x402/types";
-import { servePaidPhase, type Facilitator } from "../src/gateway.js";
+import type { HTTPProcessResult, ProcessSettleResultResponse } from "@x402/core/http";
+import { servePaidPhase } from "../src/gateway.js";
+import type { PaymentServer } from "../src/x402http.js";
 import type { Env } from "../src/env.js";
 import type { PhasePoint, SingleFlightResult } from "../src/types.js";
 
@@ -40,27 +40,6 @@ function makeKV() {
 	};
 }
 
-/** A schema-valid X-PAYMENT header (verify is stubbed, so signature contents are not checked). */
-function paymentHeader(): string {
-	const payment: PaymentPayload = {
-		x402Version: 1,
-		scheme: "exact",
-		network: "base",
-		payload: {
-			signature: `0x${"11".repeat(65)}`,
-			authorization: {
-				from: `0x${"22".repeat(20)}`,
-				to: `0x${"33".repeat(20)}`,
-				value: "1000",
-				validAfter: "0",
-				validBefore: "9999999999",
-				nonce: `0x${"44".repeat(32)}`,
-			},
-		},
-	} as PaymentPayload;
-	return encodePayment(payment);
-}
-
 /** DO namespace whose stub answers a reading per requested tf (happy path). */
 function makeServingDO() {
 	return {
@@ -87,6 +66,57 @@ function makeFailingDO() {
 	};
 }
 
+/**
+ * A stub of the two-method payment server the gateway drives. `process` decides what
+ * processHTTPRequest returns; `settle` decides processSettlement; `settleCalls` records whether
+ * settlement was reached (the money-path ordering assertion).
+ */
+function makeServer(opts: {
+	process: "verified" | "error-402";
+	settle?: "success" | "fail";
+}): PaymentServer & { settleCalls: number } {
+	const server = {
+		settleCalls: 0,
+		async processHTTPRequest(): Promise<HTTPProcessResult> {
+			if (opts.process === "error-402") {
+				return {
+					type: "payment-error",
+					response: {
+						status: 402,
+						headers: { "Content-Type": "application/json" },
+						body: { x402Version: 2, error: "Payment required" },
+					},
+				};
+			}
+			return {
+				type: "payment-verified",
+				paymentPayload: {} as never,
+				paymentRequirements: {} as never,
+				cancellationDispatcher: {} as never,
+			} as HTTPProcessResult;
+		},
+		async processSettlement(): Promise<ProcessSettleResultResponse> {
+			server.settleCalls++;
+			if (opts.settle === "fail") {
+				return {
+					success: false,
+					errorReason: "insufficient_funds",
+					headers: {},
+					response: { status: 503, headers: {}, body: {} },
+				} as ProcessSettleResultResponse;
+			}
+			return {
+				success: true,
+				transaction: "0xbeef",
+				network: "eip155:8453",
+				headers: { "PAYMENT-RESPONSE": "settled" },
+				requirements: {},
+			} as unknown as ProcessSettleResultResponse;
+		},
+	};
+	return server;
+}
+
 const realFetch = globalThis.fetch;
 afterEach(() => {
 	globalThis.fetch = realFetch;
@@ -100,91 +130,70 @@ function mockPhasesFetch() {
 		})) as typeof fetch;
 }
 
-const okVerify = async (): Promise<VerifyResponse> => ({ isValid: true });
+function baseEnv(over: Record<string, unknown> = {}): Env {
+	return {
+		PHASE_CACHE: makeKV(),
+		CURRENCY_SINGLEFLIGHT: makeServingDO(),
+		ORIGIN_URL: "https://snowsignals.io",
+		...over,
+	} as unknown as Env;
+}
 
 describe("gateway — money path ordering", () => {
-	it("does NOT settle when the serve pipeline fails (503)", async () => {
+	it("returns 400 for a bad basket, before any payment processing", async () => {
 		mockPhasesFetch();
-		let settleCalls = 0;
-		const facilitator: Facilitator = {
-			verify: okVerify,
-			settle: async () => {
-				settleCalls++;
-				return { success: true, transaction: "0xdead", network: "base" } as SettleResponse;
-			},
-		};
-		const env = {
-			PHASE_CACHE: makeKV(),
-			CURRENCY_SINGLEFLIGHT: makeFailingDO(),
-			ORIGIN_URL: "https://snowsignals.io",
-			NETWORK: "base",
-			PAY_TO: "0x000000000000000000000000000000000000dEaD",
-		} as unknown as Env;
+		const server = makeServer({ process: "verified", settle: "success" });
+		const req = new Request("https://pay.snowsignals.io/phase/boundary?currency=NOPE&tf=1h");
+		const res = await servePaidPhase("boundary", req, baseEnv(), server);
 
-		const req = new Request("https://pay.snowsignals.io/phase/boundary?currency=BTC&tf=1h", {
-			headers: { "X-PAYMENT": paymentHeader() },
-		});
-		const res = await servePaidPhase("boundary", req, env, facilitator);
-
-		assert.equal(res.status, 503);
-		assert.equal(settleCalls, 0); // settle never runs when the serve failed
+		assert.equal(res.status, 400);
+		assert.equal(server.settleCalls, 0);
 	});
 
-	it("returns 402 with the derived price when no X-PAYMENT header is present", async () => {
+	it("returns the server's 402 challenge when payment is missing / invalid, and does not serve", async () => {
 		mockPhasesFetch();
-		const facilitator: Facilitator = {
-			verify: async () => {
-				throw new Error("verify should not be called without a payment header");
-			},
-			settle: async () => {
-				throw new Error("settle should not be called");
-			},
-		};
-		const env = {
-			PHASE_CACHE: makeKV(),
-			CURRENCY_SINGLEFLIGHT: makeServingDO(),
-			ORIGIN_URL: "https://snowsignals.io",
-			NETWORK: "base",
-			PAY_TO: "0x000000000000000000000000000000000000dEaD",
-		} as unknown as Env;
-
+		const server = makeServer({ process: "error-402", settle: "success" });
 		const req = new Request("https://pay.snowsignals.io/phase/boundary?currency=BTC&tf=all");
-		const res = await servePaidPhase("boundary", req, env, facilitator);
+		const res = await servePaidPhase("boundary", req, baseEnv(), server);
 
 		assert.equal(res.status, 402);
-		const body = (await res.json()) as { x402Version: number; accepts: { maxAmountRequired: string }[] };
-		assert.equal(body.x402Version, 1);
-		// BTC × all (6 rows) ⇒ retail = 3 × round(6 × 2314) = 41652 micro-USD == atomic units.
-		assert.equal(body.accepts[0].maxAmountRequired, "41652");
+		assert.equal(server.settleCalls, 0);
+		const body = (await res.json()) as { x402Version: number };
+		assert.equal(body.x402Version, 2);
+	});
+
+	it("does NOT settle when the serve pipeline fails (503)", async () => {
+		mockPhasesFetch();
+		const server = makeServer({ process: "verified", settle: "success" });
+		const env = baseEnv({ CURRENCY_SINGLEFLIGHT: makeFailingDO() });
+		const req = new Request("https://pay.snowsignals.io/phase/boundary?currency=BTC&tf=1h");
+		const res = await servePaidPhase("boundary", req, env, server);
+
+		assert.equal(res.status, 503);
+		assert.equal(server.settleCalls, 0); // settle never runs when the serve failed
+	});
+
+	it("returns 503 (no data) when settlement is unsuccessful", async () => {
+		mockPhasesFetch();
+		const server = makeServer({ process: "verified", settle: "fail" });
+		const req = new Request("https://pay.snowsignals.io/phase/boundary?currency=BTC&tf=1h");
+		const res = await servePaidPhase("boundary", req, baseEnv(), server);
+
+		assert.equal(res.status, 503);
+		assert.equal(server.settleCalls, 1);
 	});
 
 	it("settles after a successful serve and records the settlement", async () => {
 		mockPhasesFetch();
-		let settleCalls = 0;
-		const facilitator: Facilitator = {
-			verify: okVerify,
-			settle: async () => {
-				settleCalls++;
-				return { success: true, transaction: "0xbeef", network: "base" } as SettleResponse;
-			},
-		};
+		const server = makeServer({ process: "verified", settle: "success" });
 		const kv = makeKV();
-		const env = {
-			PHASE_CACHE: kv,
-			CURRENCY_SINGLEFLIGHT: makeServingDO(),
-			ORIGIN_URL: "https://snowsignals.io",
-			NETWORK: "base",
-			PAY_TO: "0x000000000000000000000000000000000000dEaD",
-		} as unknown as Env;
-
-		const req = new Request("https://pay.snowsignals.io/phase/boundary?currency=BTC&tf=1h,4h", {
-			headers: { "X-PAYMENT": paymentHeader() },
-		});
-		const res = await servePaidPhase("boundary", req, env, facilitator);
+		const env = baseEnv({ PHASE_CACHE: kv });
+		const req = new Request("https://pay.snowsignals.io/phase/boundary?currency=BTC&tf=1h,4h");
+		const res = await servePaidPhase("boundary", req, env, server);
 
 		assert.equal(res.status, 200);
-		assert.equal(settleCalls, 1);
-		assert.ok(res.headers.get("X-PAYMENT-RESPONSE"));
+		assert.equal(server.settleCalls, 1);
+		assert.ok(res.headers.get("PAYMENT-RESPONSE"));
 		const body = (await res.json()) as { data: Record<string, Record<string, PhasePoint>> };
 		assert.equal(body.data.BTC["1h"].label, "BTC:1h");
 		assert.equal(body.data.BTC["4h"].label, "BTC:4h");
@@ -192,32 +201,7 @@ describe("gateway — money path ordering", () => {
 		assert.ok(kv.store.has("settle:0xbeef"));
 		const record = JSON.parse(kv.store.get("settle:0xbeef")!);
 		assert.equal(record.rows, 2);
+		// retail = RETAIL_MULTIPLIER × round(rows × base × mult(rows)); 2 rows ⇒ 3 × round(2×2314×1.15).
 		assert.equal(record.amount, 3 * Math.round(2 * 2314 * 1.15));
-	});
-
-	it("does NOT settle when verify rejects (402)", async () => {
-		mockPhasesFetch();
-		let settleCalls = 0;
-		const facilitator: Facilitator = {
-			verify: async () => ({ isValid: false, invalidReason: "insufficient_funds" }) as VerifyResponse,
-			settle: async () => {
-				settleCalls++;
-				return { success: true, transaction: "0x", network: "base" } as SettleResponse;
-			},
-		};
-		const env = {
-			PHASE_CACHE: makeKV(),
-			CURRENCY_SINGLEFLIGHT: makeServingDO(),
-			ORIGIN_URL: "https://snowsignals.io",
-			NETWORK: "base",
-			PAY_TO: "0x000000000000000000000000000000000000dEaD",
-		} as unknown as Env;
-
-		const req = new Request("https://pay.snowsignals.io/phase/boundary?currency=BTC&tf=1h", {
-			headers: { "X-PAYMENT": paymentHeader() },
-		});
-		const res = await servePaidPhase("boundary", req, env, facilitator);
-		assert.equal(res.status, 402);
-		assert.equal(settleCalls, 0);
 	});
 });
