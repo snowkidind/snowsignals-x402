@@ -12,7 +12,7 @@ import type { DynamicPrice, RouteConfig, RoutesConfig } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { buildBazaarDeclaration, CDP_EXTENSION_BAZAAR } from "@coinbase/cdp-sdk/x402";
 import type { Env } from "./env.js";
-import { MAX_TIMEOUT_SECONDS, NETWORK, USDC_ASSET } from "./config.js";
+import { MAX_TIMEOUT_SECONDS, NETWORK, USDC_ASSET, USDC_EIP712 } from "./config.js";
 import { createCdpAuthHeaders } from "./cdpAuth.js";
 import { computeRetail, countRows, getPricingModel } from "./pricing.js";
 import { ROUTES, type PaymentServer } from "./x402http.js";
@@ -45,6 +45,7 @@ function buildRoutes(env: Env, origin: string): RoutesConfig {
 				payTo: env.PAY_TO,
 				price,
 				maxTimeoutSeconds: MAX_TIMEOUT_SECONDS,
+				extra: { ...USDC_EIP712 },
 			},
 			resource: `${origin}${ROUTES[kind]}`,
 			description: `SnowSignals phase ${kind} — pay-per-row market-phase reading`,
