@@ -26,7 +26,8 @@
 		"prettier": "3.7.4",
 		"tsx": "4.21.0",
 		"viem": "2.56.3",
-		"wrangler": "4.130.0"
+		"wrangler": "4.130.0",
+		"x402-fetch": "1.2.0"
 	},
 	"private": true,
 	"scripts": {
@@ -38,6 +39,7 @@
 		"lint": "npm run typecheck && npm run format:check && eslint .",
 		"lint:fix": "prettier --write . && eslint . --fix",
 		"test": "tsx --test test/*.test.ts",
+		"test:e2e": "node --test e2e/gateway.e2e.mjs",
 		"typecheck": "tsc --noEmit"
 	},
 	"type": "module"

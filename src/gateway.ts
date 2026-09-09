@@ -155,5 +155,9 @@ export async function servePaidPhase(
 
 	const response = Response.json({ data: shaped });
 	response.headers.set("X-PAYMENT-RESPONSE", settleResponseHeader(settlement));
+	// Cache observability (clients / e2e): how many served rows came warm from cache vs. bought wholesale.
+	response.headers.set("X-Rows", String(rows));
+	response.headers.set("X-Cache-Hit-Rows", String(cacheHitRows));
+	response.headers.set("X-Cache", cacheHitRows === rows ? "hit" : cacheHitRows === 0 ? "miss" : "partial");
 	return response;
 }
