@@ -19,4 +19,7 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Metered + free routes are wired in later stages (money path, then free metadata passthrough).
 
+// The per-currency single-flight coordinator, exported so the Durable Object binding resolves.
+export { CurrencySingleFlight } from "./singleflight.js";
+
 export default app;

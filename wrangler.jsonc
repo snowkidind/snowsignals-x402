@@ -1,0 +1,79 @@
+/**
+ * SnowSignals x402 gateway — Wrangler configuration.
+ *
+ * Bindings are DECLARED here but their concrete resource ids and secret values are provisioned at
+ * go-live ([[98-x402-gateway-go-live]]): the KV namespace id, the real merchant `PAY_TO`, and every
+ * `wrangler secret` (HOUSE_API_KEY, CDP_API_KEY_ID, CDP_API_KEY_SECRET). Nothing secret lives in
+ * this file. See https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "snowsignals-x402",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-10-08",
+	// The x402 / CDP facilitator auth SDK (@coinbase/cdp-sdk) imports Node builtins (crypto); the
+	// gateway needs the Node compatibility layer to bundle and run on Workers.
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true,
+	},
+	"vars": {
+		// Payment network for x402 (USDC on Base = production). The `sepolia` env below overrides this.
+		"NETWORK": "base",
+		// The liveserv origin this gateway resells. Origin paths hang off `${ORIGIN_URL}/v1/api/...`.
+		"ORIGIN_URL": "https://snowsignals.io",
+		// CDP facilitator that verifies + settles x402 payments (Base + Base Sepolia).
+		"FACILITATOR_URL": "https://api.cdp.coinbase.com/platform/v2/x402",
+		// PAY_TO — merchant address that receives USDC. DOCUMENTED PLACEHOLDER: the dead address is
+		// used for the build segment; the real SnowSignals merchant address is set in [[98]].
+		"PAY_TO": "0x000000000000000000000000000000000000dEaD",
+	},
+	// Per-row phase cache (keyed `${kind}:${currency}:${tf}:${bucket}`). The `id` is a PLACEHOLDER —
+	// the real namespace is created and wired in [[98]].
+	"kv_namespaces": [
+		{
+			"binding": "PHASE_CACHE",
+			"id": "PLACEHOLDER_KV_ID_SET_IN_PLAN_98",
+		},
+	],
+	// Per-currency single-flight coordinator (one instance per currency; coalesces concurrent
+	// leftover fetches). SQLite-backed, coordination-only.
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "CURRENCY_SINGLEFLIGHT",
+				"class_name": "CurrencySingleFlight",
+			},
+		],
+	},
+	// Free-tier Durable Objects require the SQLite storage backend — new_sqlite_classes, NOT
+	// new_classes (Stage 2.1).
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["CurrencySingleFlight"],
+		},
+	],
+	"upload_source_maps": true,
+	// Environments stubbed here; concrete ids/secrets are filled at go-live ([[98]]).
+	"env": {
+		// Testnet: same code, Base Sepolia network for on-chain tests ([[98]]).
+		"sepolia": {
+			"vars": {
+				"NETWORK": "base-sepolia",
+				"ORIGIN_URL": "https://snowsignals.io",
+				"FACILITATOR_URL": "https://api.cdp.coinbase.com/platform/v2/x402",
+				"PAY_TO": "0x000000000000000000000000000000000000dEaD",
+			},
+		},
+		// Production: USDC on Base. Real PAY_TO + KV id + secrets provisioned in [[98]].
+		"production": {
+			"vars": {
+				"NETWORK": "base",
+				"ORIGIN_URL": "https://snowsignals.io",
+				"FACILITATOR_URL": "https://api.cdp.coinbase.com/platform/v2/x402",
+				"PAY_TO": "0x000000000000000000000000000000000000dEaD",
+			},
+		},
+	},
+}
