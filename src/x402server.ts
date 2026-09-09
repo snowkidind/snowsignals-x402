@@ -7,12 +7,13 @@
  * The server is built once per isolate (facilitator support is fetched in `initialize()`); the
  * per-request price is derived from the live SnowSignals model, mapped 1:1 micro-USD → USDC atomic.
  */
-import { x402ResourceServer, x402HTTPResourceServer } from "@x402/core/server";
+import { x402ResourceServer, x402HTTPResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import type { DynamicPrice, RouteConfig, RoutesConfig } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { createCdpFacilitatorClient, buildBazaarDeclaration, CDP_EXTENSION_BAZAAR } from "@coinbase/cdp-sdk/x402";
+import { buildBazaarDeclaration, CDP_EXTENSION_BAZAAR } from "@coinbase/cdp-sdk/x402";
 import type { Env } from "./env.js";
 import { MAX_TIMEOUT_SECONDS, NETWORK, USDC_ASSET } from "./config.js";
+import { createCdpAuthHeaders } from "./cdpAuth.js";
 import { computeRetail, countRows, getPricingModel } from "./pricing.js";
 import { ROUTES, type PaymentServer } from "./x402http.js";
 import type { PhaseKind } from "./types.js";
@@ -73,10 +74,9 @@ export function getPaymentServer(env: Env, request: Request): Promise<PaymentSer
 }
 
 async function buildServer(env: Env, origin: string): Promise<x402HTTPResourceServer> {
-	const facilitator = createCdpFacilitatorClient({
-		apiKeyId: env.CDP_API_KEY_ID,
-		apiKeySecret: env.CDP_API_KEY_SECRET,
-		baseUrl: env.FACILITATOR_URL,
+	const facilitator = new HTTPFacilitatorClient({
+		url: env.FACILITATOR_URL,
+		createAuthHeaders: createCdpAuthHeaders(env),
 	});
 	const resourceServer = new x402ResourceServer(facilitator).register(NETWORK, new ExactEvmScheme());
 	const server = new x402HTTPResourceServer(resourceServer, buildRoutes(env, origin));

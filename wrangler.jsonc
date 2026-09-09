@@ -14,12 +14,6 @@
 	// The x402 / CDP facilitator auth SDK (@coinbase/cdp-sdk) imports Node builtins (crypto); the
 	// gateway needs the Node compatibility layer to bundle and run on Workers.
 	"compatibility_flags": ["nodejs_compat"],
-	// uncrypto (pulled in by @coinbase/cdp-sdk's facilitator JWT signing) resolves to its node build
-	// under nodejs_compat, whose getRandomValues delegates to node:crypto.webcrypto and is undefined on
-	// workerd. Force its web build, which uses the runtime's global WebCrypto.
-	"alias": {
-		"uncrypto": "./node_modules/uncrypto/dist/crypto.web.mjs",
-	},
 	"observability": {
 		"enabled": true,
 	},
