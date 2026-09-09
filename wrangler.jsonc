@@ -33,7 +33,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "PHASE_CACHE",
-			"id": "PLACEHOLDER_KV_ID_SET_IN_PLAN_98",
+			"id": "2ce6fc0b5f1d4b39a795a9f4004911d0",
 		},
 	],
 	// Per-currency single-flight coordinator (one instance per currency; coalesces concurrent
