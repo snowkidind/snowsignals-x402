@@ -83,12 +83,15 @@
   cost ahead of time. The metadata calls are free and need no payment.</p>
 
   <h2 id="quickstart">Quickstart</h2>
-  <p>Any x402 client works. With <a href="https://www.npmjs.com/package/x402-fetch" rel="noopener">x402-fetch</a>
+  <p>Any x402 v2 client works. With <a href="https://www.npmjs.com/package/@x402/fetch" rel="noopener">@x402/fetch</a>
   and a Base wallet holding a little USDC:</p>
-  <pre><code>import { wrapFetchWithPayment, createSigner } from "x402-fetch";
+  <pre><code>import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
 
-const signer = await createSigner("base", process.env.PRIVATE_KEY);
-const pay = wrapFetchWithPayment(fetch, signer);
+const client = new x402Client();
+registerExactEvmScheme(client, { signer: privateKeyToAccount(process.env.PRIVATE_KEY) });
+const pay = wrapFetchWithPayment(fetch, client);
 
 const res = await pay("https://pay.snowsignals.io/phase/boundary?currency=BTC&amp;tf=1h");
 console.log(await res.json());

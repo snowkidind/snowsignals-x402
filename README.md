@@ -34,7 +34,7 @@ The Worker fronts these routes (on the eventual `pay.snowsignals.io`), each mapp
 
 ```
 agent ──pay per call (x402 / USDC on Base)──▶  Worker (Cloudflare edge)
-                                                 │  no X-PAYMENT → 402 + derived price
+                                                 │  no payment → 402 + derived price
                                                  │  payment → verify (CDP facilitator)
                                                  │  price/serve per ROW (basket = currency×tf rows)
                                                  │    KV hit → serve ; miss → per-currency DO single-flight
@@ -57,7 +57,7 @@ liveserv (unchanged)  ◀── house account, url-mode, daas:read
 
 ## Configuration
 
-Config vars live in `wrangler.jsonc` (`NETWORK`, `ORIGIN_URL`, `FACILITATOR_URL`, `PAY_TO`). Secrets are
+Config vars live in `wrangler.jsonc` (`ORIGIN_URL`, `FACILITATOR_URL`, `PAY_TO`). Secrets are
 set with `wrangler secret put` and are **never committed** — see `.dev.vars.example` for the list
 (`HOUSE_API_KEY`, `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`).
 
