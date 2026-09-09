@@ -17,6 +17,7 @@ import { useFacilitator } from "x402/verify";
 import { createCdpAuthHeaders } from "@coinbase/x402";
 import type { Env } from "./env.js";
 import { servePaidPhase, type Facilitator } from "./gateway.js";
+import { serveFreeMetadata } from "./free.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -35,6 +36,11 @@ function makeFacilitator(env: Env): Facilitator {
 // Metered routes — priced per row, paid per call over x402.
 app.get("/phase/boundary", (c) => servePaidPhase("boundary", c.req.raw, c.env, makeFacilitator(c.env)));
 app.get("/phase/updates", (c) => servePaidPhase("updates", c.req.raw, c.env, makeFacilitator(c.env)));
+
+// Free metadata — edge-cached passthrough, no payment.
+app.get("/phases", (c) => serveFreeMetadata(c.req.raw, c.env, "/v1/api/phases"));
+app.get("/phase/resolution-stats", (c) =>
+	serveFreeMetadata(c.req.raw, c.env, "/v1/api/phase/resolution-stats"));
 
 // The per-currency single-flight coordinator, exported so the Durable Object binding resolves.
 export { CurrencySingleFlight } from "./singleflight.js";
