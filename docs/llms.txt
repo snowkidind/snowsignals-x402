@@ -1,7 +1,7 @@
 # SnowSignals x402 gateway
 
 > Market-phase data (TrendVane) over the x402 pay-per-call protocol. Pay per request in USDC on Base.
-> No account, no API key, no signup. The phase names the market state for a currency on a timeframe;
+> No account or API key needed. The phase names the market state for a currency on a timeframe;
 > it reports state, not a trade signal.
 
 Base URL: https://pay.snowsignals.io
