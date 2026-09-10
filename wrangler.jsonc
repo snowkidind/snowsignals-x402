@@ -1,10 +1,11 @@
 /**
  * SnowSignals x402 gateway — Wrangler configuration.
  *
- * Bindings are DECLARED here but their concrete resource ids and secret values are provisioned at
- * go-live ([[98-x402-gateway-go-live]]): the KV namespace id, the real merchant `PAY_TO`, and every
- * `wrangler secret` (HOUSE_API_KEY, CDP_API_KEY_ID, CDP_API_KEY_SECRET). Nothing secret lives in
- * this file. See https://developers.cloudflare.com/workers/wrangler/configuration/
+ * Non-secret resource coordinates live here (the KV namespace id, the merchant `PAY_TO`, the origin
+ * and facilitator URLs) — none of them grant access on their own. The credentials that do are set as
+ * `wrangler secret` (HOUSE_API_KEY, CDP_API_KEY_ID, CDP_API_KEY_SECRET) and never committed, and the
+ * Cloudflare account id is passed by env at deploy. Nothing secret lives in this file.
+ * See https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
@@ -26,8 +27,8 @@
 		// index 4). FORKERS: replace with your OWN receive address.
 		"PAY_TO": "0x9273429D71565154fA0FDf4Bf0f404Eb02C91518",
 	},
-	// Per-row phase cache (keyed `${kind}:${currency}:${tf}:${bucket}`). The `id` is a PLACEHOLDER —
-	// the real namespace is created and wired in [[98]].
+	// Per-row phase cache (keyed `${kind}:${currency}:${tf}:${bucket}`). FORKERS: create your own KV
+	// namespace (`wrangler kv namespace create PHASE_CACHE`) and put its id here.
 	"kv_namespaces": [
 		{
 			"binding": "PHASE_CACHE",
@@ -45,7 +46,7 @@
 		],
 	},
 	// Free-tier Durable Objects require the SQLite storage backend — new_sqlite_classes, NOT
-	// new_classes (Stage 2.1).
+	// new_classes.
 	"migrations": [
 		{
 			"tag": "v1",
@@ -53,8 +54,7 @@
 		},
 	],
 	"upload_source_maps": true,
-	// Single top-level config — deploy with a plain `wrangler deploy` (no named env). Testnet was
-	// dropped (go-live proves the money path with a real cent-scale payment on Base — [[98]] D1); a
-	// named `production` env that redeclared only `vars` would have silently dropped the KV + DO
-	// bindings, so the top-level config is the one source of truth.
+	// Single top-level config — deploy with a plain `wrangler deploy` (no named env). A named
+	// `production` env that redeclared only `vars` would silently drop the KV + DO bindings, so the
+	// top-level config is the one source of truth.
 }
