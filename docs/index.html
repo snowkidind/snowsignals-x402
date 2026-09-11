@@ -42,11 +42,16 @@
   }
   .btn.secondary { background: #1a212e; color: #cdd5e2; border: 1px solid #2a3342; }
   footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid #1a212e; color: #6b7484; font-size: 0.88rem; }
+  .sitenav { font-size: 0.95rem; color: #6b7484; margin: 0 0 28px; }
+  .sitenav a { color: #8b93a3; }
+  .sitenav a:hover { color: #cdd5e2; }
+  .sitenav.foot { margin: 0 0 10px; }
   hr { border: none; border-top: 1px solid #1a212e; margin: 44px 0; }
 </style>
 </head>
 <body>
 <main>
+  <nav class="sitenav">[ <a href="/">x402</a> | <a href="build-your-own-x402-data-rail.html">tutorial</a> | <a href="https://github.com/snowkidind/snowsignals-x402" rel="noopener">github</a> ]</nav>
   <h1>Market-phase data, one call at a time.</h1>
   <p class="lede">TrendVane names the phase a market is in, for a currency on a timeframe. Read it over
   x402 and pay per call in USDC on Base. You don't need an account or an API key.</p>
@@ -112,9 +117,9 @@ console.log(await res.json());
   walks the whole build, stage by stage, from cloning the template to a live deploy on your own domain.</p>
 
   <footer>
-    SnowSignals · TrendVane market-phase data · settled in USDC on Base via
-    <a href="https://x402.org" rel="noopener">x402</a>.
-    Machine-readable: <a href="llms.txt">llms.txt</a> · <a href="openapi.json">OpenAPI</a>.
+    <nav class="sitenav foot">[ <a href="/">x402</a> | <a href="build-your-own-x402-data-rail.html">tutorial</a> | <a href="https://github.com/snowkidind/snowsignals-x402" rel="noopener">github</a> ]</nav>
+    <div>© 2026 SnowSignals</div>
+    <div><a href="llms.txt">llms.txt</a> · <a href="openapi.json">OpenAPI</a></div>
   </footer>
 </main>
 </body>

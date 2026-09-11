@@ -35,6 +35,8 @@ blockquote {
   background: #f8fafc; color: #33404d; border-radius: 0 6px 6px 0;
 }
 blockquote p { margin: .8rem 0; }
+.sitenav { font-size: .95rem; color: #8a8f98; margin: 0 0 2.2rem; }
+.sitenav.foot { margin: 3.5rem 0 0; padding-top: 1.4rem; border-top: 1px solid #eee; }
 @media (prefers-color-scheme: dark) {
   body { color: #d7dbe0; background: #16181d; }
   h2 { border-top-color: #2a2e37; }
@@ -42,10 +44,12 @@ blockquote p { margin: .8rem 0; }
   code { background: #262a31; }
   pre { background: #1c1f26; border-color: #2a2e37; }
   blockquote { background: #1b1e24; color: #b8bfc9; border-left-color: #3a414d; }
+  .sitenav.foot { border-top-color: #2a2e37; }
 }
 </style>
 </head>
 <body>
+<nav class="sitenav">[ <a href="/">x402</a> | <a href="/build-your-own-x402-data-rail.html">tutorial</a> | <a href="https://github.com/snowkidind/snowsignals-x402">github</a> ]</nav>
 <h1>Build your own pay-per-call data rail on Cloudflare with x402</h1>
 <p><strong>Date:</strong> 2026-09-10 · <strong>Author:</strong> @snowkidind (+ Claude) · <strong>Repo:</strong> <code>snowsignals-x402</code></p>
 <p>Most APIs make you sign up, hand over a card, and wait for a bill. This one takes payment at the door, one call at a time, from autonomous software providing data as a service. This article walks through building that: a small program, running on Cloudflare and live on your own domain, that resells <em>SnowSignals market-phase readings</em> for a fraction of a cent per call. It&#x27;s a wholesale model: You keep the spread between what you charge and what the data costs you, and no user account nor invoice ever enters the picture.</p>
@@ -200,5 +204,6 @@ wrangler deployments list     # deploy history</code></pre>
 <ul><li><a href="https://docs.cdp.coinbase.com/">Coinbase Developer Platform</a>, where you create the CDP API key.</li><li><a href="https://www.base.org/">Base</a>, the network payments settle on.</li><li><a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712</a> and <a href="https://eips.ethereum.org/EIPS/eip-3009">EIP-3009</a>, the typed-data and transfer-authorization standards the payment signature is built on.</li></ul>
 <p><strong>SnowSignals and this template</strong></p>
 <ul><li><a href="https://snowsignals.io">snowsignals.io</a>, the wholesale data platform and dashboard.</li><li><a href="https://github.com/snowkidind/snowsignals-x402">snowkidind/snowsignals-x402</a>, the template you clone.</li><li><a href="https://x402.snowsignals.io">x402.snowsignals.io</a>, the running reference deployment.</li></ul>
+<nav class="sitenav foot">[ <a href="/">x402</a> | <a href="/build-your-own-x402-data-rail.html">tutorial</a> | <a href="https://github.com/snowkidind/snowsignals-x402">github</a> ]</nav>
 </body>
 </html>
