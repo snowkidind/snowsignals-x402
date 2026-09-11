@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="930" viewBox="0 0 1240 930" font-family="Helvetica Neue, Arial, sans-serif">
+  <defs>
+    <marker id="ablue" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#5b9bff"/></marker>
+    <marker id="agreen" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#46d19e"/></marker>
+    <marker id="amute" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#7c8698"/></marker>
+    <marker id="amutestart" markerWidth="9" markerHeight="9" refX="2" refY="3" orient="auto"><path d="M8,0 L0,3 L8,6 Z" fill="#7c8698"/></marker>
+  </defs>
+
+  <rect width="1240" height="930" fill="#14161b"/>
+  <text x="40" y="66" fill="#e7e9ee" font-size="40" font-weight="700">How one paid call flows through the gateway</text>
+
+  <!-- Agent -->
+  <rect x="480" y="118" width="280" height="96" rx="16" fill="#1b1e25" stroke="#2b303a" stroke-width="2"/>
+  <text x="620" y="180" fill="#e7e9ee" font-size="40" font-weight="700" text-anchor="middle">AI agent</text>
+
+  <!-- pay arrow down -->
+  <line x1="634" y1="224" x2="634" y2="306" stroke="#5b9bff" stroke-width="4.5" marker-end="url(#ablue)"/>
+  <text x="658" y="274" fill="#5b9bff" font-size="27" font-weight="700">pay per call</text>
+
+  <!-- Worker panel -->
+  <rect x="170" y="320" width="900" height="380" rx="20" fill="#1a1d24" stroke="#3a4552" stroke-width="2"/>
+  <text x="210" y="392" fill="#e7e9ee" font-size="48" font-weight="700">Your Worker</text>
+  <line x1="195" y1="420" x2="1045" y2="420" stroke="#2b303a" stroke-width="2"/>
+
+  <!-- stage 1 -->
+  <circle cx="224" cy="492" r="24" fill="#5b9bff"/>
+  <text x="224" y="502" fill="#0c1220" font-size="28" font-weight="700" text-anchor="middle">1</text>
+  <text x="272" y="504" fill="#5b9bff" font-size="36" font-weight="700">VERIFY</text>
+  <text x="470" y="504" fill="#d7dce3" font-size="26">no payment → 402 + price; call verified</text>
+
+  <!-- stage 2 -->
+  <circle cx="224" cy="582" r="24" fill="#46d19e"/>
+  <text x="224" y="592" fill="#07231a" font-size="28" font-weight="700" text-anchor="middle">2</text>
+  <text x="272" y="594" fill="#46d19e" font-size="36" font-weight="700">SERVE</text>
+  <text x="470" y="594" fill="#d7dce3" font-size="26">per row: cache hit, else fetch wholesale</text>
+
+  <!-- stage 3 -->
+  <circle cx="224" cy="672" r="24" fill="#f0b64d"/>
+  <text x="224" y="682" fill="#2a1e05" font-size="28" font-weight="700" text-anchor="middle">3</text>
+  <text x="272" y="684" fill="#f0b64d" font-size="36" font-weight="700">SETTLE</text>
+  <text x="470" y="684" fill="#d7dce3" font-size="26">on-chain, only after data is in hand</text>
+
+  <!-- Worker -> SnowSignals -->
+  <line x1="400" y1="700" x2="400" y2="788" stroke="#7c8698" stroke-width="3.4" marker-end="url(#amute)" marker-start="url(#amutestart)"/>
+  <text x="424" y="736" fill="#c9cfd9" font-size="24">cache miss: wholesale read</text>
+  <text x="424" y="766" fill="#8ea2c6" font-size="22" font-family="SFMono-Regular, Menlo, monospace">GET …?apiKey=&lt;api-key&gt;</text>
+
+  <!-- Worker -> Receive -->
+  <line x1="900" y1="700" x2="900" y2="788" stroke="#46d19e" stroke-width="3.8" marker-end="url(#agreen)"/>
+  <text x="924" y="736" fill="#46d19e" font-size="24" font-weight="700">settle</text>
+  <text x="924" y="766" fill="#c9cfd9" font-size="22">USDC → your address</text>
+
+  <!-- SnowSignals -->
+  <rect x="170" y="788" width="430" height="112" rx="16" fill="#1b1e25" stroke="#2b303a" stroke-width="2"/>
+  <text x="385" y="858" fill="#e7e9ee" font-size="38" font-weight="700" text-anchor="middle">SnowSignals</text>
+
+  <!-- Receive address -->
+  <rect x="680" y="788" width="430" height="112" rx="16" fill="#1b1e25" stroke="#2b303a" stroke-width="2"/>
+  <text x="895" y="858" fill="#e7e9ee" font-size="38" font-weight="700" text-anchor="middle">Your address</text>
+</svg>
