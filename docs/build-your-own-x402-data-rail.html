@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build your own pay-per-call data rail on Cloudflare with x402</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  max-width: 760px; margin: 0 auto; padding: 3rem 1.25rem 6rem;
+  color: #1a1a1a; background: #fff; text-rendering: optimizeLegibility;
+}
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 1.5rem; }
+h2 { font-size: 1.45rem; margin: 2.6rem 0 .9rem; padding-top: .4rem; border-top: 1px solid #eee; }
+h3 { font-size: 1.15rem; margin: 1.8rem 0 .6rem; }
+p { margin: 0 0 1.1rem; }
+a { color: #2b6cb0; text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { margin: 0 0 1.1rem; padding-left: 1.4rem; }
+li { margin: .3rem 0; }
+strong { font-weight: 650; }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .88em; background: #f2f3f5; padding: .12em .35em; border-radius: 4px;
+}
+pre {
+  background: #f6f8fa; border: 1px solid #e6e8eb; border-radius: 8px;
+  padding: 1rem 1.1rem; overflow-x: auto; margin: 0 0 1.3rem; line-height: 1.5;
+}
+pre code { background: none; padding: 0; font-size: .82rem; }
+blockquote {
+  margin: 0 0 1.2rem; padding: .1rem 1.1rem; border-left: 4px solid #cbd5e0;
+  background: #f8fafc; color: #33404d; border-radius: 0 6px 6px 0;
+}
+blockquote p { margin: .8rem 0; }
+@media (prefers-color-scheme: dark) {
+  body { color: #d7dbe0; background: #16181d; }
+  h2 { border-top-color: #2a2e37; }
+  a { color: #7fb2f0; }
+  code { background: #262a31; }
+  pre { background: #1c1f26; border-color: #2a2e37; }
+  blockquote { background: #1b1e24; color: #b8bfc9; border-left-color: #3a414d; }
+}
+</style>
+</head>
+<body>
+<h1>Build your own pay-per-call data rail on Cloudflare with x402</h1>
+<p><strong>Date:</strong> 2026-09-10 · <strong>Author:</strong> @snowkidind (+ Claude) · <strong>Repo:</strong> <code>snowsignals-x402</code></p>
+<p>Most APIs make you sign up, hand over a card, and wait for a bill. This one takes payment at the door, one call at a time, from autonomous software providing data as a service. This article walks through building that: a small program, running on Cloudflare and live on your own domain, that resells <em>SnowSignals market-phase readings</em> for a fraction of a cent per call. It&#x27;s a wholesale model: You keep the spread between what you charge and what the data costs you, and no user account nor invoice ever enters the picture.</p>
+<p>The mechanism is a payment protocol called <strong>x402</strong>, and its name is a small piece of web history worth knowing. Every time your browser loads a page, the server answers with a three-digit code you rarely see. 200 means &quot;here you go.&quot; 404 means &quot;I can&#x27;t find that.&quot; 500 means &quot;I broke.&quot; These codes were laid down in the early 1990s, when the web was a handful of linked documents and everyone was still working out how machines should talk to each other over HTTP in the first place. (<a href="https://increment.com/apis/land-before-modern-apis/">The land before modern APIs</a> tells that story well.)</p>
+<p>One number on the list, 402, got the label &quot;Payment Required&quot; and then nothing else. The authors figured the web would need to charge money someday, couldn&#x27;t agree on how, and parked the code for later. It sat empty for thirty years. x402 is the protocol that finally uses it: a server replies to a request with a price, the caller pays, the request is retried, and the data comes back. Because it&#x27;s built for software paying software, the software, (or an AI agent) can buy a single call on its own, with no account and no card on file.</p>
+<p>Payment is in USDC, settled over Base, a network built and run by Coinbase. Coinbase also operates the service that checks and settles each payment on-chain, which is why this tutorial has you set up a Coinbase account. The prerequisites below cover that.</p>
+<p>You won&#x27;t write this from scratch. The code lives on GitHub as a template: a complete project, published so anyone can copy it, modify as desired, and run their own. In this exercise, you will clone the repository, change the handful of values that make it yours (your payout address, your price, your data account), and deploy.</p>
+<p>An example of the finished version is live at <a href="https://x402.snowsignals.io">x402.snowsignals.io</a>. What follows is how it&#x27;s built, stage by stage.</p>
+<h2>Prerequisites</h2>
+<p>Three accounts you sign up for, plus one you fund:</p>
+<ul><li><strong>GitHub</strong>, to fork the repository and hold your own version of the code. You can use Github pages to publish your landing page and documentation.</li><li><strong>Cloudflare.</strong> People know Cloudflare for spam protection but it does a lot more. You can get a free tier account and you get a lot of features, one of which is the ability to host workers without an actual web hosting service. You can also buy a custom domain and point it at the github site. Cloudflare Worker + Github Pages = functional website, for free.</li><li><strong>Coinbase, with developer API access.</strong> This is what verifies and settles the payments. Coinbase is a regulated exchange, so the account needs identity verification (KYC) before it will hand you API keys. Give yourself a little lead time if you&#x27;re signing up fresh. This is referenced as <strong>CDP</strong> (Coinbase Developer Platform)</li><li>A <strong>SnowSignals.io</strong> account. You can set up the account and even get some test tokens for free before actually sending money to the platform. Look for the fountain game or go to the telegram room and ask for developer credits to get up and running. You can register by email or blockchain address, up to you. You will need some tokens to run the platform, (the phase events arent free) but there are enough ways to build a MVP without dropping anything substantial.</li></ul>
+<p>You&#x27;ll also want Node 22 or newer and a Base wallet holding a small amount of USDC for the live test at the end. The next section gets the local tooling in place; the specific credentials get created in the stages that use them.</p>
+<h2>What you&#x27;re building</h2>
+<pre><code>agent ──pay per call (x402 / USDC on Base)──▶  your Worker (Cloudflare edge)
+                                                 │  no payment → 402 + the quoted price
+                                                 │  payment → verify (CDP facilitator)
+                                                 │  serve per ROW: cache hit → return
+                                                 │                 miss → per-currency single-flight
+                                                 │                        → GET SnowSignals ?apiKey=&lt;api-key&gt;
+                                                 │  settle AFTER the data is in hand
+                                                 ▼   USDC → your receive address (Base)
+SnowSignals  ◀── one prepaid account + a url-mode, read-only API key</code></pre>
+<p>Two economic ideas carry the whole design.</p>
+<p>The first is your SnowSignals account. To the platform, your Worker is a single ordinary prepaid customer. It holds a read-only key, carries a balance you top up, and spends that balance every time it fetches a reading it doesn&#x27;t already have. Your retail customers never touch it. Their USDC lands at your own Base address, separate from the balance that funds the wholesale reads. The gap between the two is your margin.</p>
+<p>The second idea is that caching is where the margin actually comes from. A market phase on a closed candle is a fixed fact until the next candle closes. So the first buyer who asks for BTC on the 1h timeframe pays you retail, and you pay wholesale once to fetch it. The next hundred buyers who ask for the same thing in that hour pay you retail too, and you fetch nothing. You bill them for a row you already have. The warmer your cache runs, the wider the spread. That&#x27;s the business.</p>
+<p>Everything below is in service of those two ideas: keep the SnowSignals account safe, and cache aggressively so you buy wholesale as rarely as the data allows.</p>
+<h2>The three Cloudflare pieces</h2>
+<p>The whole gateway runs on Cloudflare, and it leans on three of their building blocks. If you&#x27;ve never used them, here&#x27;s what each one is and the job it does in this project. The rest of the article assumes you have this picture in your head.</p>
+<p><strong>A Worker</strong> is a small program that runs on Cloudflare&#x27;s edge, a copy of which runs in the data centers closest to whoever called it. A copy spins up to handle a request and goes away after. That&#x27;s the whole gateway: one Worker holding all the routing, pricing, and payment logic. When someone calls your API, a Worker on Cloudflare somewhere near them runs your code.</p>
+<p>The code is written in <strong>TypeScript</strong>, which is JavaScript with type annotations that the compiler checks before anything ships.</p>
+<blockquote><p>TypeScript is optional here. The runtime only ever runs JavaScript, so the types are purely a build-time safety net that compiles away. You could write this whole gateway in plain JavaScript and skip the compile step. Anything that compiles to WebAssembly can run inside a Worker, with <em>Rust</em> the best-supported of those (Cloudflare ships a <code>workers-rs</code> toolchain), <em>Go, C, Python</em>.</p></blockquote>
+<p>To push the code from the repo to the worker, you use a CLI program on your local computer called <strong>Wrangler</strong>, Cloudflare&#x27;s official tool for Workers. You install it with npm and run it on your local machine (the install command is in the next section). It talks to Cloudflare&#x27;s API on your behalf, using a login you authorize once, so a command on your laptop turns into an action on your Cloudflare account. You&#x27;ll use it to run the Worker locally while you develop (<code>wrangler dev</code>), to create the storage resources it needs, to store your secrets, and to ship the code (<code>wrangler deploy</code>).</p>
+<blockquote><p>Cloudflare&#x27;s runtime is called workerd, and it&#x27;s built on V8, the same engine inside Chrome. So it speaks web standards like <code>fetch</code> and <code>crypto.subtle</code> out of the box, and it isn&#x27;t Node. A few Node conveniences only exist because <code>wrangler.jsonc</code> turns on a compatibility layer (<code>nodejs_compat</code>), a detail that bites you exactly once, in the money-path signing (Section 5).</p></blockquote>
+<p>As for where the code lives: nowhere you can log into. (Visibility is possible, theres a section on it later)  When you run <code>wrangler deploy</code>, Wrangler compiles and bundles all of <code>src/</code> into a single optimized JavaScript file and uploads that bundle to Cloudflare, which copies it out to every data center on the network. Each incoming request runs the bundle in a fresh, lightweight V8 sandbox that starts in about a millisecond, so there are no cold starts to design around and no instance you patch or restart. You change code by editing your local <code>src/</code> and deploying again, which replaces the bundle everywhere at once. Where the wrangler CLI runs is the source of truth; the deployed bundle is a build artifact of it.</p>
+<p>A Worker is small on purpose, and a few limits come with that. The deployed bundle has to fit in about 1 MB gzipped on the free plan (10 MB on paid), which the x402 and payment dependencies push against, so it&#x27;s a real number to watch on deploy. Each request runs in roughly 128 MB of memory with a tight CPU budget, which suits an I/O-bound gateway like this one and rules out heavy per-call computation. On its own, a worker is stateless, it has no filesystem but Cloudflare has storage products to solve this problem.</p>
+<blockquote><p><strong>Is the running code public?</strong> No. Callers see your HTTP responses and nothing more; Cloudflare never exposes your source code or the deployed bundle. Your secrets don&#x27;t get sent in the bundle: <code>HOUSE_API_KEY</code> and the CDP (Coinbase) keys are injected at runtime by CLI:  <code>wrangler secret</code></p></blockquote>
+<p>Keys are sent to Cloudflare via wrangler, and are stored on platform as environment variables. They don&#x27;t get pushed through the repo. that said there is a file that contains configuration data called wrangler.jsonc, which does contain some particulars of the setup but these are like coordinates, aka resource identifiers. The recipient&#x27;s address (you) is public by design.</p>
+<p>Cloudflare&#x27;s <strong>Workers KV</strong> is a key-value store, which is about the simplest database there is: you put a value under a string key and later get it back by that key. It&#x27;s spread across their whole network and tuned for fast reads, which is exactly what a cache wants. This is where your fetched SnowSignals data lives between requests. Each reading is stored under a key like <code>boundary:BTC:1h:&lt;close-time&gt;</code>.</p>
+<blockquote><p>One thing to keep in mind: KV is <em>eventually consistent</em>, so a value you just wrote can take a moment to be visible everywhere. That&#x27;s fine for a cache. The worst case is that a row you fetched a second ago isn&#x27;t visible to the very next request yet, so that request buys it again: a wasted fraction of a cent that corrects itself as soon as the write propagates.</p></blockquote>
+<p><strong>A Durable Object</strong> (DO) is the odd one, and the most powerful. A Worker is stateless and runs in many copies at once, so it has nowhere to coordinate things that must happen one at a time. A Durable Object fills that gap. It&#x27;s a tiny stateful object with a name, and Cloudflare guarantees exactly one instance exists for a given name across the entire network. Give two requests the same name and they reach the same instance, so it can serialize them. This gateway names one per currency. When a burst of buyers all ask for the same cold row, they land on the same Durable Object, and it makes sure only one wholesale fetch goes out while the rest wait for the result. That&#x27;s the single-flight coordination that protects your margin under load.</p>
+<p>DO&#x27;s have a lot of features so they are worth taking a look at when you want to expand this, for instance, they have a small database, can hold state, alarms, manage connections, and more.</p>
+<p>Net: the <strong>Worker</strong> is your gateway, <strong>KV</strong> is the cache that holds bought readings, and the <strong>Durable Object</strong> is the traffic cop that keeps a stampede of buyers from turning into a stampede of wholesale buys. Section 3 sets up the last two.</p>
+<h2>Before you start</h2>
+<p>With the accounts from the last section in hand, set up locally. We tested this on <strong>Node 22</strong> and <strong>Wrangler 4.130.0</strong>. Install Wrangler:</p>
+<pre><code class="language-bash">npm install -g wrangler</code></pre>
+<p>You can skip the global install and call it on demand as <code>npx wrangler …</code> instead; either way the repo lists Wrangler as a dev dependency, so the <code>npm install</code> below pulls it in too.</p>
+<p>Three credentials the running gateway depends on get created later, in the stages that use them, and wired in as secrets at deploy time (Section 7): your <strong>SnowSignals API key</strong> (a read-only, url-mode credential that funds the wholesale reads), your <strong>Coinbase API key</strong> (which authorizes the payment checks and settlement), and a <strong>Base address you control</strong> to receive the USDC. The receive address only ever takes money in; the Worker never holds a key that can spend.</p>
+<p>Clone the template and install:</p>
+<pre><code class="language-bash">git clone https://github.com/snowkidind/snowsignals-x402
+cd snowsignals-x402
+npm install
+npm run typecheck &amp;&amp; npm test    # green before you touch anything</code></pre>
+<h2>1 · Register, mint a url-mode API key, and fund it</h2>
+<p>Sign up at <a href="https://snowsignals.io">snowsignals.io</a> and create an API key in <strong>url-key mode</strong>. API key creation is in the credentials section. To get some free credit, (Shows up as Atoms: not a crypto, just a way to internally account for things) scroll down and go to the fountain page link at the bottom of the page, play a few rounds and claim in the account tab on each round. This should get you up and testable.  If you are confident that the product is for you, you may also just connect a wallet and buy some credit outright.</p>
+<p>Double check the API-key is configured properly: The url-key mode carries a bare <code>?apiKey=&lt;key&gt;</code> with no rolling nonce, which is the one that works across for this use.</p>
+<p>Regarding the SnowSignals credit, this is the pool your Worker draws down as it serves. Keep an eye on it and top up before it bottoms out.</p>
+<h2>2 · Point it at your origin and set your price</h2>
+<p>Two files hold everything you&#x27;ll change.</p>
+<p>Wrangler reads a config file at the repo root, <code>wrangler.jsonc</code>, which is where the Worker&#x27;s name, its entry point, and its connections to the KV cache and Durable Object are declared. When this article points you at a value in <code>wrangler.jsonc</code>, that&#x27;s the file it means, and your local Wrangler CLI tool is what acts on it. Here, it carries the deployment vars:</p>
+<pre><code class="language-jsonc">// wrangler.jsonc
+&quot;vars&quot;: {
+  &quot;ORIGIN_URL&quot;: &quot;https://snowsignals.io&quot;,
+  &quot;FACILITATOR_URL&quot;: &quot;https://api.cdp.coinbase.com/platform/v2/x402&quot;,
+  &quot;PAY_TO&quot;: &quot;0xYourReceiveAddress&quot;   // FORKERS: your OWN Base receive address
+}</code></pre>
+<p><code>PAY_TO</code> ships as a placeholder. Replace it with your address before you deploy, or you&#x27;ll be routing your customers&#x27; money to someone else&#x27;s wallet.</p>
+<p><code>src/config.ts</code> holds the one knob that sets your business:</p>
+<pre><code class="language-ts">// src/config.ts
+/** Retail = wholesale × this. Your margin. */
+export const RETAIL_MULTIPLIER = 3;</code></pre>
+<p>Three means you charge triple the wholesale rate. Set it wherever your market bears. This lives in source as a plain constant so it diffs and reverts cleanly, and there&#x27;s no runtime flag to fat-finger in production.</p>
+<p>Notice what you don&#x27;t set: the actual per-row price. The Worker reads the live pricing model from SnowSignals&#x27; free <code>/v1/api/phases</code> endpoint, caches it for a day, and computes each quote from it. When SnowSignals changes its wholesale rate, your retail price tracks it automatically. You only ever own the multiplier.</p>
+<p>The math, for one request: <code>rows = |currencies| × |timeframes|</code>, then <code>retail = round(rows × base_rate × tier_multiplier) × RETAIL_MULTIPLIER</code>. As of September 2026, at the current base rate and a 3× multiplier, a single row runs almost a cent. (about $0.0087) A buyer asking for <code>all</code>currencies across <code>all</code> timeframes pays for the full basket in one call.</p>
+<h2>3 · Create the Cloudflare resources</h2>
+<p>Create the KV cache and the Durable Object you met above. In Cloudflare terms these are <em>bindings</em>: entries in <code>wrangler.jsonc</code> that give the Worker a name it can use in code to reach each resource. The repo already declares both. You provision the KV namespace once and paste back its id; the Durable Object needs nothing from you but is worth understanding.</p>
+<p>Create the KV namespace and paste the id it prints into <code>wrangler.jsonc</code>:</p>
+<pre><code class="language-bash">npx wrangler kv namespace create PHASE_CACHE
+# → copy the returned id into the kv_namespaces block, replacing the placeholder</code></pre>
+<p>The Durable Object comes pre-declared, meaning the template&#x27;s <code>wrangler.jsonc</code> already carries its configuration, and it is created automatically. It&#x27;s a binding (the name your code reaches it by) plus a migration entry, and <code>wrangler deploy</code> registers the object on your account automatically the first time you ship.</p>
+<p>As covered above, this DO stores no data. Each instance holds a single in-flight fetch per currency, in memory, to fold a burst of identical cache misses into one wholesale read. Ten buyers hit the same cold row at once, one pays for the fetch, the other nine ride along. That coalescing is a direct line to your margin, so it earns its place in the stack; it&#x27;s simply optimization.</p>
+<h2>4 · The serve pipeline: cache per row, buy per row</h2>
+<p>Open <code>src/rows.ts</code>. This is the core, and it&#x27;s worth reading even though you won&#x27;t edit it, because it&#x27;s where the money logic actually lives.</p>
+<p>A request is a basket of rows, one per <code>(currency, timeframe)</code> pair. The pipeline treats every row independently:</p>
+<ol><li>Expand the basket into individual rows, each with its own cache key.</li><li>Split them into the ones already warm in KV and the ones missing.</li><li>Fetch only the missing ones, grouped per currency, each currency going through its single-flight coordinator. One combined call per currency fetches exactly the timeframes it needs.</li><li>Write each fetched row back to cache under its own key and TTL.</li><li>Assemble the response from exactly the rows the caller asked for.</li></ol>
+<p>The buyer pays retail for the whole basket. You get billed wholesale only for the rows you actually had to fetch. On a warm cache that&#x27;s zero, and the entire retail payment is margin.</p>
+<p>The cache keys are built so a stale reading can never be served. A boundary row (the settled phase from the last closed candle) is keyed by its next-close timestamp and cached until that close. When a new candle closes, the key changes on its own and yesterday&#x27;s value simply stops being asked for. A live <code>updates</code> row is cached 60 seconds, which is as fast as the underlying reading refreshes anyway. Below that floor there&#x27;s nothing newer to serve.</p>
+<p>Each response the gateway returns carries a few headers for testing that report how the cache did on that call: <code>X-Rows</code>, <code>X-Cache-Hit-Rows</code>, and <code>X-Cache</code> (<code>hit</code>, <code>miss</code>, or <code>partial</code>). Those headers ride on the response the caller receives, so you see them directly only on calls you make yourself (the e2e suite, a curl). You can&#x27;t read a buyer&#x27;s response, so for live traffic cache effectiveness shows up instead in the <code>cache_hit_rows</code> recorded on each settlement (Section 8).</p>
+<h2>5 · The money path (x402 v2)</h2>
+<p>Here&#x27;s the part people find fiddly, so take it slowly. The gateway speaks <strong>x402 version 2</strong>, which is header-based. The exchange goes:</p>
+<ol><li>A buyer calls a metered route with no payment. The Worker answers <strong>402</strong> with the price and the payment terms in a <code>PAYMENT-REQUIRED</code> header.</li><li>The buyer&#x27;s x402 client signs a one-time USDC authorization for exactly that amount and retries, carrying it in <code>PAYMENT-SIGNATURE</code>.</li><li>The Worker verifies the signature off-chain, serves the data, then settles on-chain and returns the receipt in <code>PAYMENT-RESPONSE</code>.</li></ol>
+<p>The ordering is the safety property, and it&#x27;s deliberate: <strong>verify → serve → settle</strong>. The Worker drives the x402 resource server&#x27;s <code>processHTTPRequest</code> (verify, or issue the challenge) and <code>processSettlement</code> (settle) by hand, so the serve step sits between them. If the data fetch fails for any reason, settlement never runs and the buyer is never charged. A failed serve costs the buyer nothing. See <code>src/gateway.ts</code> for the exact sequence and <code>src/x402server.ts</code> for how the server is wired.</p>
+<p>The price in the challenge comes from a dynamic-price callback, so the SDK quotes each request from the same live pricing model your serve path uses. The challenge also advertises the USDC EIP-712 domain (<code>{ name: &quot;USD Coin&quot;, version: &quot;2&quot; }</code>, in <code>config.ts</code>), which the buyer&#x27;s client needs to build the transfer-authorization signature. Leave it out and clients refuse to pay.</p>
+<h3>The CDP JWT gotcha</h3>
+<p>This one will cost you an afternoon if you hit it cold, so it&#x27;s called out on its own.</p>
+<p>The CDP facilitator authenticates every verify and settle call with a short-lived Ed25519 JWT. The obvious move is to let Coinbase&#x27;s own SDK mint that JWT for you. It doesn&#x27;t work inside a Worker. The SDK&#x27;s JWT path pulls in <code>jose</code> and <code>uncrypto</code>, and those modules fail to initialize in the right order in the Workers bundle, leaving their crypto bindings undefined at runtime. You get a cryptic failure deep in the money path.</p>
+<p>The fix is in <code>src/cdpAuth.ts</code>: sign the JWT directly against the runtime&#x27;s native WebCrypto (<code>crypto.subtle</code>), which workerd supports for Ed25519. It mints a ~120-second Bearer token per facilitator call, scoped to that method and path, matching CDP&#x27;s expected format. The money-path auth stays on first-party, runtime-native code with no fragile dependency chain. If you fork this, keep that file. Don&#x27;t be tempted to &quot;simplify&quot; it back to the SDK helper.</p>
+<h2>6 · Discovery and the landing page</h2>
+<p>An agent that&#x27;s never heard of your service can still find it. Each metered route declares an x402 <strong>Bazaar</strong> discovery extension in its payment terms (<code>buildBazaarDeclaration</code> in <code>x402server.ts</code>). On a successful settlement the CDP facilitator reads that declaration and indexes your route in its public catalog, keyed by the route&#x27;s canonical URL on your own domain. Because the URL is derived from your deployment&#x27;s origin, a fork automatically lists under its own domain. One clean catalog entry per route, and buyers can discover you by capability.</p>
+<p>For humans and for LLM agents, the repo also ships a static landing page in <code>docs/</code> that you serve over GitHub Pages.  It carries an <code>llms.txt</code> and an OpenAPI descriptor so a machine can read your endpoints, pricing, and response shape without guessing. Point a subdomain at the Pages site (the reference deployment uses <code>x402.snowsignals.io</code>) and set your own copy in <code>docs/index.html</code>. The template&#x27;s pitch is already written for a reseller to adapt.</p>
+<h2>7 · Set secrets, deploy, and verify</h2>
+<p>Three secrets never go in any file. Set them with Wrangler:</p>
+<pre><code class="language-bash">npx wrangler secret put HOUSE_API_KEY      # your funded SnowSignals url-key
+npx wrangler secret put CDP_API_KEY_ID
+npx wrangler secret put CDP_API_KEY_SECRET</code></pre>
+<p>Then ship it:</p>
+<pre><code class="language-bash">npx wrangler deploy</code></pre>
+<p>Point your API subdomain (the reference uses <code>pay.snowsignals.io</code>) at the Worker, and your landing subdomain at the Pages site. First, prove it with the free routes, which need no payment:</p>
+<pre><code class="language-bash">curl https://pay.YOURDOMAIN/phases                    # pricing model + enabled currencies/tfs
+curl &quot;https://pay.YOURDOMAIN/phase/boundary?currency=BTC&amp;tf=1h&quot;   # expect a 402 with a quoted price</code></pre>
+<p>A 402 carrying a sane price and your <code>PAY_TO</code> means the challenge side works. Now prove the money path end to end. The repo&#x27;s e2e suite makes real cent-scale payments on Base against your live deployment:</p>
+<pre><code class="language-bash">GATEWAY_URL=https://pay.YOURDOMAIN \
+PAYER_PRIVATE_KEY=0xYOUR_TEST_KEY \
+npm run test:e2e</code></pre>
+<p>Bring a Base wallet holding about a dollar of USDC. The paid suite spends roughly five cents across a handful of calls, and it checks the things that matter: the 402 quotes the right price, a payment settles on-chain and returns a reading, a repeat of the same row comes back <code>X-Cache: hit</code> with no wholesale re-buy, and a multi-row basket returns exactly what was asked for. Keep that payer key out of your shell history and out of git. Pass it inline or export it from a file you don&#x27;t commit.</p>
+<p>If the cache test reads <code>miss</code> once in a while, re-run it. Workers KV is eventually consistent, so a write can occasionally lag its read. Everything else should be deterministic.</p>
+<h2>8 · Seeing inside a running gateway</h2>
+<p>Once it&#x27;s live you&#x27;ll want to look inside it: check the accounting, watch a request go by, work out why a deploy misbehaved. The three pieces give you three very different levels of visibility, and it&#x27;s worth knowing what each one will and won&#x27;t show you.</p>
+<h3>KV (<code>PHASE_CACHE</code>): full visibility</h3>
+<p>The cache is the most transparent layer. Everything in it is listable and readable remotely with <code>wrangler kv key ...</code>. Two kinds of thing live there.</p>
+<p>The valuable one is your settlement ledger. Every paid call that settles writes a <code>settle:&lt;tx_hash&gt;</code> record holding the endpoint, kind, row count, amount, cache-hit count, and timestamp, keyed by its on-chain transaction hash. That&#x27;s your accounting record, one entry per sale, and you can read any of them back:</p>
+<pre><code class="language-bash">wrangler kv key get &quot;settle:0x70dcdc61…&quot; --namespace-id &lt;your-id&gt; --remote</code></pre>
+<p>The rest is cache: the <code>price-model</code> entry, a few warm <code>boundary:*</code> rows, the occasional <code>updates:BTC:1h</code>. Those expire on their TTL, so the set stays small and churns on its own. The Cloudflare dashboard also charts read, write, and storage over time.</p>
+<h3>The Worker: logs that stick around</h3>
+<p><code>wrangler.jsonc</code> sets <code>observability.enabled: true</code>, which turns on Workers Logs. So your invocations are more than a live tail. They&#x27;re retained and queryable in the Cloudflare dashboard (Observability → Logs / Invocations) and through the analytics API for the retention window, which is roughly three days. You get per-request status, <code>console.log</code> output, CPU time, and errors after the fact.</p>
+<p>For the live view:</p>
+<pre><code class="language-bash">wrangler tail                 # real-time stream, runs in a terminal
+wrangler deployments list     # deploy history</code></pre>
+<p>This is a property worth leaning on. Plenty of setups throw their logs away the moment a request ends; here Cloudflare keeps them for you, dashboard-side, so you can go back and read exactly what happened on a call that already finished.</p>
+<h3>The Durable Object (<code>CurrencySingleFlight</code>): thin by design</h3>
+<p>This is the blind spot, and it&#x27;s deliberate. The Durable Object stores nothing. It holds only the in-flight fetch promise in memory to coalesce concurrent misses, so between requests it&#x27;s empty and there&#x27;s no persistent state to inspect.</p>
+<p>What you can see is the dashboard&#x27;s DO metrics: invocation count, active objects, duration, and storage sitting at roughly zero bytes. Any <code>console.log</code> from inside the object flows into the same Workers Logs and <code>wrangler tail</code> stream as the Worker.</p>
+<p>What you can&#x27;t see is its state, because it has none. That&#x27;s why you can&#x27;t confirm the &quot;many concurrent callers collapse to a single wholesale read&quot; property from the gateway side. The object doesn&#x27;t count its own coalescing. The proof of that net-one debit lives in your SnowSignals account&#x27;s usage log, where the one wholesale read shows up, rather than anywhere in the gateway itself.</p>
+<h2>Making it yours, and where the edges are</h2>
+<p>Once it&#x27;s live, the template is yours to bend. The verify → serve → settle skeleton doesn&#x27;t care what the serve step actually does, so the whole rail is reusable for almost anything you can meter. A few realistic directions:</p>
+<ul><li><strong>Filter or reshape</strong> the readings before they go out. Serve only the phases that match some condition, relabel them, or fold several timeframes into one summary.</li><li><strong>Sell your own derived product.</strong> Compute a score, a composite signal, or an alert on top of the raw phases and charge for that. Your buyers pay for your thing; you pay SnowSignals wholesale for the rows underneath, and the margin math is unchanged.</li><li><strong>Blend in another source.</strong> Combine SnowSignals with a second data feed in one response and sell the bundle.</li><li><strong>Change the commercial shape.</strong> Add tiers, rate limits, a webhook push, a different pricing curve.</li></ul>
+<p>The one boundary is the wholesale agreement. You&#x27;re reselling someone else&#x27;s data, so what the SnowSignals terms allow for redistribution and derived works is what sets the ceiling on any of this. Read them before you build a business on top.</p>
+<p>The Worker&#x27;s basic limits (bundle size, memory, no disk) were covered earlier. Two more edges only show up under real traffic, and both are worth knowing before you scale:</p>
+<ul><li><strong>KV writes are slow and rate-limited per key.</strong> Reads are fast and cheap, but you get roughly one write per second to a single key, and each write takes a moment to propagate. That&#x27;s a fine fit for a cache that&#x27;s read far more than it&#x27;s written. It would be the wrong tool for a high-frequency counter.</li><li><strong>A Durable Object is single-threaded per name.</strong> Every request for a given currency serializes through that currency&#x27;s one instance. That serialization is exactly what gives you the single wholesale read under a stampede, and it&#x27;s also a ceiling: one blistering-hot currency funnels through one object. For phase data at human timeframes you&#x27;ll never feel it, but it&#x27;s the first thing to think about if you repurpose the coordinator for something busier.</li></ul>
+<p>Cloudflare adjusts these numbers over time, so confirm the current figures in their docs before you plan around a specific limit.</p>
+<h2>Getting listed</h2>
+<p>Once your gateway is live, discovery does most of the work for you, but a few directories are worth a manual submission to widen who can find your service. Bazaar (Section 6) is the automatic one: once a call settles, your route is in the CDP catalog, and several aggregators pull from there, so your first paid call effectively lists you. The rest take a few minutes each.</p>
+<ul><li><strong>Coinbase x402 Bazaar</strong> is the first-party catalog, and it&#x27;s automatic: nothing to submit. Most other directories crawl it, so it&#x27;s the one that matters most, and settling a single call gets you in.</li><li><strong>x402-list.com</strong> is a community directory whose largest category is &quot;Data.&quot; Submit your endpoint on its <code>/submit</code> page; a listing from your own domain is free.</li><li><strong>agent-tools.cloud/x402</strong> is an aggregator with <code>market-data</code> and <code>crypto-data</code> categories. It crawls Bazaar and the awesome-x402 list, and also takes a self-submit form.</li><li><strong><code>xpaysh/awesome-x402</code></strong> is the community &quot;awesome&quot; list on GitHub, a few hundred entries with an AI-agent section. Open a pull request adding your service.</li></ul>
+<p>Newer venues like <code>x402scan</code>, <code>gold-402</code>, and <code>Merit-Systems/awesome-agentic-commerce</code> keep appearing; check that one is active before spending time on it. One venue needs no submission at all: keep your <code>llms.txt</code> and OpenAPI descriptor valid and reachable, and LLM-facing scanners will discover them the way a crawler finds <code>robots.txt</code>, so a clean landing page catalogs itself.</p>
+<h2>The snags, collected</h2>
+<ul><li><strong>Replace <code>PAY_TO</code></strong> with your own Base address before deploy. The shipped value is a placeholder.</li><li><strong>Use a url-mode SnowSignals API key, read-only.</strong> Nonce-mode keys wedge on a distributed edge; a read-only scope means a leak can&#x27;t reach the money path.</li><li><strong>Keep <code>src/cdpAuth.ts</code>.</strong> The Coinbase SDK&#x27;s JWT signing fails to initialize inside a Worker. The hand-rolled WebCrypto version is there for a reason.</li><li><strong>The Durable Object must be on the SQLite backend</strong> (<code>new_sqlite_classes</code>) or it won&#x27;t run on the free tier.</li><li><strong>Watch your SnowSignals account balance.</strong> When it hits zero, cache misses start failing and buyers see errors. Top up ahead of the drain.</li><li><strong>Your buyers pay in USDC and never touch gas.</strong> The facilitator covers settlement gas, so if someone can&#x27;t pay, check their USDC balance first.</li></ul>
+<h2>References and links</h2>
+<p><strong>x402 protocol</strong></p>
+<ul><li><a href="https://x402.org">x402.org</a>, the protocol&#x27;s home page and overview.</li><li><a href="https://github.com/coinbase/x402">coinbase/x402</a>, the spec and reference implementation (the v2 scheme lives here).</li><li><a href="https://docs.cdp.coinbase.com/x402">Coinbase x402 docs</a>, the facilitator and <a href="https://docs.cdp.coinbase.com/x402/bazaar">Bazaar discovery catalog</a>.</li></ul>
+<p><strong>Cloudflare</strong></p>
+<ul><li><a href="https://developers.cloudflare.com/workers/">Workers</a>, the runtime the gateway runs on.</li><li><a href="https://developers.cloudflare.com/kv/">Workers KV</a>, the per-row cache.</li><li><a href="https://developers.cloudflare.com/durable-objects/">Durable Objects</a>, the single-flight coordinator.</li><li><a href="https://developers.cloudflare.com/workers/wrangler/">Wrangler CLI</a>, the tool you install to develop and deploy.</li><li><a href="https://developers.cloudflare.com/workers/observability/logs/">Workers observability</a>, the retained logs from Section 8.</li><li><a href="https://pages.github.com/">GitHub Pages</a>, where the static landing page is served.</li></ul>
+<p><strong>Payments and chain</strong></p>
+<ul><li><a href="https://docs.cdp.coinbase.com/">Coinbase Developer Platform</a>, where you create the CDP API key.</li><li><a href="https://www.base.org/">Base</a>, the network payments settle on.</li><li><a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712</a> and <a href="https://eips.ethereum.org/EIPS/eip-3009">EIP-3009</a>, the typed-data and transfer-authorization standards the payment signature is built on.</li></ul>
+<p><strong>SnowSignals and this template</strong></p>
+<ul><li><a href="https://snowsignals.io">snowsignals.io</a>, the wholesale data platform and dashboard.</li><li><a href="https://github.com/snowkidind/snowsignals-x402">snowkidind/snowsignals-x402</a>, the template you clone.</li><li><a href="https://x402.snowsignals.io">x402.snowsignals.io</a>, the running reference deployment.</li></ul>
+</body>
+</html>
