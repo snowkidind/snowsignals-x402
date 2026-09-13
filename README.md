@@ -78,4 +78,7 @@ the on-chain tests are handled at go-live, not here.
 
 ## License
 
-Not yet specified.
+Licensed under the [Apache License 2.0](LICENSE) — this is a starter kit, meant to be forked and
+adapted (set your own retail multiplier, house account, and domain). The **SnowSignals** and
+**TrendVane** names and brand assets are trademarks of snowkidind and are not covered by that license
+(see [NOTICE](NOTICE)); a fork resells SnowSignals data under your own branding, not ours.
